@@ -38,6 +38,8 @@
 #define ADC_DAC_SAMPL_RATE 0x00 /* f_ref/1 */
 #define F_REF 0x00 /*48kHz*/
 #define TIMEOUT 1000
+#define PLL_REG_A 0b00010000 /*after reset value*/
+#define CDC_BYPASS_REG 0b00110011 /*bypass only line 1*/
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -61,6 +63,8 @@ uint8_t CODEC_I2C_ADDR = 0b0011000;
 uint8_t CDC_REG0_ADDR = 0x00; /* PAGE SELECTION */
 uint8_t CDC_REG2[] = {0x02, ADC_DAC_SAMPL_RATE};
 uint8_t CDC_REG7[] = {0x07, F_REF}; /* fref */
+uint8_t PLL_EN_REG = 0x03;
+uint8_t CDC_REG108[] = {0x6C, CDC_BYPASS_REG};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -116,7 +120,7 @@ int main(void)
     /* wait for CODEC RESET */
     HAL_Delay(RST_TIME);
     /* Codec Setup */
-    //Codec_Setup();
+    Codec_Setup();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -128,8 +132,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  	  /* reset leds */
-  	  //Led_Clear();
 
   	  if(TIM3_ISR_FLAG){
   		  /* set new led */
@@ -138,6 +140,8 @@ int main(void)
   		  led_index++;
   		  if(led_index == NUM_LEDS){
   			  led_index = 0;
+  		  	  /* reset leds */
+  		  	  Led_Clear();
   		  }
 
   		  TIM3_ISR_FLAG = 0;
@@ -381,6 +385,14 @@ static void Codec_Setup(){
 		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG2, sizeof(CDC_REG2), TIMEOUT);
 		/* write fref */
 		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG7, sizeof(CDC_REG7), TIMEOUT);
+		/* read pll status*/
+		if(HAL_I2C_Master_Receive(&hi2c1, CODEC_I2C_ADDR, &PLL_EN_REG, sizeof(PLL_EN_REG), TIMEOUT) == PLL_REG_A){
+			HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
+		}else{
+			HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
+		}
+		/* codec general bypass, direct connection input to output */
+		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG2, sizeof(CDC_REG2), TIMEOUT);
 	}
 }
 

@@ -60,8 +60,8 @@ all: main-build
 main-build: NAS_periph_test.elf secondary-outputs
 
 # Tool invocations
-NAS_periph_test.elf NAS_periph_test.map: $(OBJS) $(USER_OBJS) C:\Users\HP\Desktop\DEDOR\DEDOR\ POLIMI\ANNO\ 5\Project_AOS_ES\NAS_periph_test\STM32F401RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "NAS_periph_test.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\HP\Desktop\DEDOR\DEDOR POLIMI\ANNO 5\Project_AOS_ES\NAS_periph_test\STM32F401RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="NAS_periph_test.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+NAS_periph_test.elf NAS_periph_test.map: $(OBJS) $(USER_OBJS) C:\Users\HP\Desktop\DEDOR\DEDOR\ POLIMI\ANNO\ 5\Project_AOS_ES\STM32Nucleo-Codec-Shield\NAS_periph_test\STM32F401RETX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "NAS_periph_test.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\HP\Desktop\DEDOR\DEDOR POLIMI\ANNO 5\Project_AOS_ES\STM32Nucleo-Codec-Shield\NAS_periph_test\STM32F401RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="NAS_periph_test.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
