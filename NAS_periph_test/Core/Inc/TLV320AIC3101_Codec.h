@@ -3,6 +3,7 @@
 
 #define CODEC_I2C_ADDR 0b00110000
 #define I2C_MEMADD_SIZE 1
+#define RESET_TIME 50
 
 //magari si può fare il define dei led qua
 // e aggiungere i led nello struct che definisce il codec

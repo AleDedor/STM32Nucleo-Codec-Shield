@@ -9,6 +9,8 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 
 	HAL_StatusTypeDef status;
 
+	//Wait power on reset for the CODEC
+	HAL_Delay(RESET_TIME);
 	//software reset
 	status = Codec_WriteRegister(codec, 0x01, 0b10000000);
 	HAL_Delay(10);
@@ -27,7 +29,7 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//un-mute left ADC PGA
 	status = Codec_WriteRegister(codec, 0x0f, 0b00000000);
 
-	//un-mute rigth ADC PGA
+	//un-mute right ADC PGA
 	status = Codec_WriteRegister(codec, 0x10, 0b00000000);
 
 	//LET'S USE JACK CH2 FOR THE TESTS!
@@ -50,14 +52,19 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 
 	//set DAC path
 	status = Codec_WriteRegister(codec, 0x29, 0b10100010);
+
 	//un-mute left DAC
 	status = Codec_WriteRegister(codec, 0x2B, 0b00000000);
+
 	//un-mute right DAC
 	status = Codec_WriteRegister(codec, 0x2C, 0b00000000);
+
 	//un-mute HPLOUT
 	status = Codec_WriteRegister(codec, 0x33, 0b00001111);
+
 	//un-mute HPROUT
 	status = Codec_WriteRegister(codec, 0x41, 0b00001111);
+
 	//HPLOUT driver powered up (STATUS REG)
 	status = Codec_WriteRegister(codec, 0x5e, 0b11000110);
 	return status;

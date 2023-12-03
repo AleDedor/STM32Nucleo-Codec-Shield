@@ -1,26 +1,12 @@
 /* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2023 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdio.h"
 #include "TLV320AIC3101_Codec.h"
 /* USER CODE END Includes */
 
@@ -34,7 +20,6 @@
 #define HIGH 1
 #define LOW 0
 #define NUM_LEDS 6
-#define RST_TIME 1
 #define ADC_DAC_SAMPL_RATE 0x00 /* f_ref/1 */
 #define F_REF 0x00 /*48kHz*/
 #define TIMEOUT 500
@@ -60,24 +45,11 @@ UART_HandleTypeDef huart2;
 uint8_t TIM3_ISR_FLAG = 0;
 uint8_t pll_reg_val=0;
 
+uint8_t ADC_flag_reg = 0;
+uint8_t power_stat_reg = 0;
+char buff[100];
+
 uint16_t LED_PIN[NUM_LEDS]={RLED1_Pin, RLED2_Pin, YLED1_Pin, YLED2_Pin, GLED1_Pin, GLED2_Pin};
-// I2C COMMUNICATION
-//uint8_t CODEC_I2C_ADDR = 0b00110000;
-uint8_t CDC_REG0_ADDR = 0x00; /* PAGE SELECTION */
-uint8_t CDC_REG2[] = {0x02, ADC_DAC_SAMPL_RATE};
-uint8_t CDC_REG7[] = {0x07, F_REF}; /* fref */
-uint8_t PLL_EN_REG = 0x03;
-uint8_t CDC_REG108[] = {0x6C, CDC_BYPASS_REG};
-//activate DAC_L and DAC_R
-uint8_t CDC_REG37[] ={0x25, 0b11100000};
-//set DAC patch
-uint8_t CDC_REG41[] ={0x29, 0b10100010};
-//un-mute DAC
-uint8_t CDC_REG43[] ={0x2b, 0b00000000};
-//un-mute HPLOUT
-uint8_t CDC_REG51[] ={0x33, 0b00001111};
-//HPLOUT driver powered up
-uint8_t CDC_REG94[] ={0x5e, 0b11000110};
 
 Codec codec;
 /* USER CODE END PV */
@@ -96,7 +68,15 @@ static void Led_Clear();
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void Led_Clear(){
+	HAL_GPIO_WritePin(GPIOA, RLED1_Pin|RLED2_Pin|YLED1_Pin
+	                          |YLED2_Pin|GLED1_Pin|GLED2_Pin, GPIO_PIN_RESET);
+}
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
+	if(htim == &htim3)
+		TIM3_ISR_FLAG = 1;
+}
 /* USER CODE END 0 */
 
 /**
@@ -131,46 +111,46 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM3_Init();
   MX_I2S2_Init();
+
   /* USER CODE BEGIN 2 */
   /* Start the Timer 3 to turn on LEDS */
-    HAL_TIM_Base_Start_IT(&htim3);
-    /* wait for CODEC RESET */
-    HAL_Delay(RST_TIME);
-    /* Codec Setup */
-    if(Codec_Init(&codec, &hi2c1) != HAL_OK){
-    	HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
-    }
-    else{
-    	HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
-    }
-    HAL_Delay(50);
+  HAL_TIM_Base_Start_IT(&htim3);
+
+  /* Codec Setup */
+  if(Codec_Init(&codec, &hi2c1) != HAL_OK){
+	  HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
+  }
+  else{
+	  HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
+  }
+
+  //Get ADC Flag register and Power Status Register and send them through UART
+  Codec_ReadRegister(&codec, 0x24, &ADC_flag_reg);
+  Codec_ReadRegister(&codec, 0x5e, &power_stat_reg);
+  uint8_t len = snprintf(buff, sizeof(buff),"ADC Flag Register: %d \n Power Status Register: %d\n\r",ADC_flag_reg,power_stat_reg);
+  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-    uint8_t led_index = 0;
+  uint8_t led_index = 0;
 
-    while (1)
-    {
-    /* USER CODE END WHILE */
+  while (1){
+	  if(TIM3_ISR_FLAG){
+		  /* set new led */
+		  HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
 
-    /* USER CODE BEGIN 3 */
-
-  	  if(TIM3_ISR_FLAG){
-  		  /* set new led */
-  		  HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
-
-  		  led_index++;
-  		  if(led_index == NUM_LEDS){
-  			  led_index = 0;
-  		  	  /* reset leds */
-  		  	  Led_Clear();
-  		  }
-
-  		  TIM3_ISR_FLAG = 0;
-  	  }
-
-    }
+		  led_index++;
+		  if(led_index == NUM_LEDS){
+			  led_index = 0;
+			  /* reset leds */
+			  Led_Clear();
+		  }
+		  TIM3_ISR_FLAG = 0;
+	  }
+  /* USER CODE END WHILE */
+  /* USER CODE BEGIN 3 */
+  }
   /* USER CODE END 3 */
 }
 
@@ -404,10 +384,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-static void Led_Clear(){
-	HAL_GPIO_WritePin(GPIOA, RLED1_Pin|RLED2_Pin|YLED1_Pin
-	                          |YLED2_Pin|GLED1_Pin|GLED2_Pin, GPIO_PIN_RESET);
-}
 /*
 static void Codec_Setup(){
 	//I2C set to 100 kHz
@@ -441,10 +417,6 @@ static void Codec_Setup(){
 	//}
 }*/
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
-	UNUSED(htim);
-	TIM3_ISR_FLAG = 1;
-}
 /* USER CODE END 4 */
 
 /**
