@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "TLV320AIC3101_Codec.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,7 +37,7 @@
 #define RST_TIME 1
 #define ADC_DAC_SAMPL_RATE 0x00 /* f_ref/1 */
 #define F_REF 0x00 /*48kHz*/
-#define TIMEOUT 1000
+#define TIMEOUT 500
 #define PLL_REG_A 0b00010000 /*after reset value*/
 #define CDC_BYPASS_REG 0b00110011 /*bypass only line 1*/
 /* USER CODE END PD */
@@ -50,21 +50,36 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
+I2S_HandleTypeDef hi2s2;
+
 TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 uint8_t TIM3_ISR_FLAG = 0;
+uint8_t pll_reg_val=0;
 
 uint16_t LED_PIN[NUM_LEDS]={RLED1_Pin, RLED2_Pin, YLED1_Pin, YLED2_Pin, GLED1_Pin, GLED2_Pin};
 // I2C COMMUNICATION
-uint8_t CODEC_I2C_ADDR = 0b0011000;
+//uint8_t CODEC_I2C_ADDR = 0b00110000;
 uint8_t CDC_REG0_ADDR = 0x00; /* PAGE SELECTION */
 uint8_t CDC_REG2[] = {0x02, ADC_DAC_SAMPL_RATE};
 uint8_t CDC_REG7[] = {0x07, F_REF}; /* fref */
 uint8_t PLL_EN_REG = 0x03;
 uint8_t CDC_REG108[] = {0x6C, CDC_BYPASS_REG};
+//activate DAC_L and DAC_R
+uint8_t CDC_REG37[] ={0x25, 0b11100000};
+//set DAC patch
+uint8_t CDC_REG41[] ={0x29, 0b10100010};
+//un-mute DAC
+uint8_t CDC_REG43[] ={0x2b, 0b00000000};
+//un-mute HPLOUT
+uint8_t CDC_REG51[] ={0x33, 0b00001111};
+//HPLOUT driver powered up
+uint8_t CDC_REG94[] ={0x5e, 0b11000110};
+
+Codec codec;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -73,9 +88,10 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_I2S2_Init(void);
 /* USER CODE BEGIN PFP */
 static void Led_Clear();
-static void Codec_Setup();
+//static void Codec_Setup();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -114,13 +130,20 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   MX_TIM3_Init();
+  MX_I2S2_Init();
   /* USER CODE BEGIN 2 */
   /* Start the Timer 3 to turn on LEDS */
     HAL_TIM_Base_Start_IT(&htim3);
     /* wait for CODEC RESET */
     HAL_Delay(RST_TIME);
     /* Codec Setup */
-    Codec_Setup();
+    if(Codec_Init(&codec, &hi2c1) != HAL_OK){
+    	HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
+    }
+    else{
+    	HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
+    }
+    HAL_Delay(50);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -232,6 +255,40 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief I2S2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2S2_Init(void)
+{
+
+  /* USER CODE BEGIN I2S2_Init 0 */
+
+  /* USER CODE END I2S2_Init 0 */
+
+  /* USER CODE BEGIN I2S2_Init 1 */
+
+  /* USER CODE END I2S2_Init 1 */
+  hi2s2.Instance = SPI2;
+  hi2s2.Init.Mode = I2S_MODE_MASTER_TX;
+  hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
+  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
+  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_96K;
+  hi2s2.Init.CPOL = I2S_CPOL_LOW;
+  hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
+  hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_ENABLE;
+  if (HAL_I2S_Init(&hi2s2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2S2_Init 2 */
+
+  /* USER CODE END I2S2_Init 2 */
+
+}
+
+/**
   * @brief TIM3 Initialization Function
   * @param None
   * @retval None
@@ -334,22 +391,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PC2 */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF6_I2S2ext;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : PC3 PC6 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_6;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
   /*Configure GPIO pins : LD2_Pin RLED1_Pin RLED2_Pin YLED1_Pin
                            YLED2_Pin GLED1_Pin GLED2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin|RLED1_Pin|RLED2_Pin|YLED1_Pin
@@ -359,14 +400,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB10 PB12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
 }
 
 /* USER CODE BEGIN 4 */
@@ -375,26 +408,38 @@ static void Led_Clear(){
 	HAL_GPIO_WritePin(GPIOA, RLED1_Pin|RLED2_Pin|YLED1_Pin
 	                          |YLED2_Pin|GLED1_Pin|GLED2_Pin, GPIO_PIN_RESET);
 }
-
+/*
 static void Codec_Setup(){
-	/* I2C set to 100 kHz */
-	uint8_t CDC_REG0_VAL = HAL_I2C_Master_Receive(&hi2c1, CODEC_I2C_ADDR, &CDC_REG0_ADDR, sizeof(CDC_REG0_ADDR), TIMEOUT);
+	//I2C set to 100 kHz
+	//uint8_t CDC_REG0_VAL = HAL_I2C_Master_Receive(&hi2c1, CODEC_I2C_ADDR, &CDC_REG0_ADDR, sizeof(CDC_REG0_ADDR), TIMEOUT);
 
-	if(CDC_REG0_VAL == 0){ /*PAGE 0 OK*/
-		/* write ADC/DAC sampling frequency */
-		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG2, sizeof(CDC_REG2), TIMEOUT);
-		/* write fref */
-		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG7, sizeof(CDC_REG7), TIMEOUT);
-		/* read pll status*/
-		if(HAL_I2C_Master_Receive(&hi2c1, CODEC_I2C_ADDR, &PLL_EN_REG, sizeof(PLL_EN_REG), TIMEOUT) == PLL_REG_A){
+	//if(CDC_REG0_VAL == 0){ PAGE 0 OK
+		//write ADC/DAC sampling frequency
+		if(HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG2, 2, TIMEOUT)!= HAL_OK)
 			HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
-		}else{
-			HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
-		}
-		/* codec general bypass, direct connection input to output */
-		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG2, sizeof(CDC_REG2), TIMEOUT);
-	}
-}
+		//write fref
+		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG7, sizeof(CDC_REG7), TIMEOUT);
+		// codec general bypass, direct connection input to output
+		//HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG108, sizeof(CDC_REG108), TIMEOUT);
+		// aaaaaaaa
+		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG37, sizeof(CDC_REG37), TIMEOUT);
+		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG41, sizeof(CDC_REG41), TIMEOUT);
+		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG43, sizeof(CDC_REG43), TIMEOUT);
+		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG51, sizeof(CDC_REG51), TIMEOUT);
+		HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, CDC_REG94, sizeof(CDC_REG94), TIMEOUT);
+		//read pll status
+		//HAL_I2C_Master_Transmit(&hi2c1, CODEC_I2C_ADDR, &PLL_EN_REG, sizeof(PLL_EN_REG), TIMEOUT);
+		//if(HAL_I2C_Master_Receive(&hi2c1, CODEC_I2C_ADDR, &pll_reg_val, sizeof(pll_reg_val), TIMEOUT) != HAL_OK){
+			//HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
+			//HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
+		//}
+		//}else{
+			//HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
+		//}
+
+
+	//}
+}*/
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	UNUSED(htim);
