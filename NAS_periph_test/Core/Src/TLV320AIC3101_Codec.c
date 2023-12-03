@@ -28,6 +28,24 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//un-mute rigth ADC PGA
 	status = Codec_WriteRegister(codec, 0x10, 0b00000000);
 
+	//LET'S USE JACK CH2 FOR THE TESTS!
+	//MIC2L connected to LEFT ADC (0dB), MIC2R not connected to LEFT ADC
+	status = Codec_WriteRegister(codec, 0x11, 0b00001111);
+	//MIC2R connected to RIGTH ADC (0dB), MIC2L not connected to RIGHT ADC
+	status = Codec_WriteRegister(codec, 0x12, 0b11110000);
+
+	//Turn ON LEFT ADC
+	status = Codec_WriteRegister(codec, 0x13, 0b01111111);
+
+	//Turn ON RIGHT ADC
+	status = Codec_WriteRegister(codec, 0x16, 0b01111111);
+
+	//Turn ON RIGHT and LEFT DACs, HPLCOM set as independent single-ended output
+	status = Codec_WriteRegister(codec, 0x25, 0b11100000);
+
+	//HPRCOM set as independent single-ended output, short circuit protection activated
+	status = Codec_WriteRegister(codec, 0x26, 0b00010110);
+
 	//DA FINIRE
 	return status;
 }
