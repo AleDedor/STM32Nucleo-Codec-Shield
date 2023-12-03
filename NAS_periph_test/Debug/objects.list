@@ -1,3 +1,4 @@
+"./Core/Src/TLV320AIC3101_Codec.o"
 "./Core/Src/main.o"
 "./Core/Src/stm32f4xx_hal_msp.o"
 "./Core/Src/stm32f4xx_it.o"
@@ -16,6 +17,8 @@
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c_ex.o"
+"./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2s.o"
+"./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2s_ex.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_pwr_ex.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc.o"
