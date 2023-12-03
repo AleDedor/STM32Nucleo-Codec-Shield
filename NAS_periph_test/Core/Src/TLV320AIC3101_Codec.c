@@ -12,6 +12,8 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//software reset
 	status = Codec_WriteRegister(codec, 0x01, 0b10000000);
 	HAL_Delay(10);
+	// codec ADC/DAC sample rate
+	status = Codec_WriteRegister(codec, 0x02, 0b00000000);
 
 	//with PLL disabled: We want fs=48kHz, from datasheet: fs = MCLK / (Q*128) since MCLK=96k*256, for fs=48kHz -> Q=4
 	status = Codec_WriteRegister(codec, 0x03, 0b00100000);
@@ -46,7 +48,18 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//HPRCOM set as independent single-ended output, short circuit protection activated
 	status = Codec_WriteRegister(codec, 0x26, 0b00010110);
 
-	//DA FINIRE
+	//set DAC path
+	status = Codec_WriteRegister(codec, 0x29, 0b10100010);
+	//un-mute left DAC
+	status = Codec_WriteRegister(codec, 0x2B, 0b00000000);
+	//un-mute right DAC
+	status = Codec_WriteRegister(codec, 0x2C, 0b00000000);
+	//un-mute HPLOUT
+	status = Codec_WriteRegister(codec, 0x33, 0b00001111);
+	//un-mute HPROUT
+	status = Codec_WriteRegister(codec, 0x41, 0b00001111);
+	//HPLOUT driver powered up (STATUS REG)
+	status = Codec_WriteRegister(codec, 0x5e, 0b11000110);
 	return status;
 }
 
