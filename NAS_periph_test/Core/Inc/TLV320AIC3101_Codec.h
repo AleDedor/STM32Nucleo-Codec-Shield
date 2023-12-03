@@ -5,7 +5,7 @@
 #define I2C_MEMADD_SIZE 1
 
 //magari si può fare il define dei led qua
-
+// e aggiungere i led nello struct che definisce il codec
 typedef struct{
 	I2C_HandleTypeDef *I2Chandle;
 }Codec;
