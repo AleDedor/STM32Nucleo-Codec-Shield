@@ -65,8 +65,8 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//un-mute HPROUT, high impedance when powered down, HPROUT fully powered
 	status = Codec_WriteRegister(codec, 0x41, 0b00001111);
 
-	//CLK source selection, PLLDIV OUT for test
-	status = Codec_WriteRegister(codec, 0x65, 0b00000000);
+	//CLK source selection, CLKDIV_OUT 
+	status = Codec_WriteRegister(codec, 0x65, 0b00000001);
 
 	return status;
 }
