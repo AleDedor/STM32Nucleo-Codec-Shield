@@ -50,7 +50,7 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//HPRCOM set as independent single-ended output, short circuit protection activated
 	status = Codec_WriteRegister(codec, 0x26, 0b00010110);
 
-	//set DAC path
+	//set DAC path, DAC_L2 to left high power, DAC_R2 to right high power, right-DAC volume follows left-DAC volume
 	status = Codec_WriteRegister(codec, 0x29, 0b10100010);
 
 	//un-mute left DAC
@@ -59,14 +59,15 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//un-mute right DAC
 	status = Codec_WriteRegister(codec, 0x2C, 0b00000000);
 
-	//un-mute HPLOUT
+	//un-mute HPLOUT, high impedance when powered down, HPLOUT fully powered
 	status = Codec_WriteRegister(codec, 0x33, 0b00001111);
 
-	//un-mute HPROUT
+	//un-mute HPROUT, high impedance when powered down, HPROUT fully powered
 	status = Codec_WriteRegister(codec, 0x41, 0b00001111);
 
-	//HPLOUT driver powered up (STATUS REG)
-	status = Codec_WriteRegister(codec, 0x5e, 0b11000110);
+	//CLK source selection, PLLDIV OUT for test
+	status = Codec_WriteRegister(codec, 0x65, 0b00000000);
+
 	return status;
 }
 

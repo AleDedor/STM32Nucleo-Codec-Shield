@@ -43,14 +43,7 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 uint8_t TIM3_ISR_FLAG = 0;
-uint8_t pll_reg_val=0;
-
-uint8_t ADC_flag_reg = 0;
-uint8_t power_stat_reg = 0;
-char buff[100];
-
 uint16_t LED_PIN[NUM_LEDS]={RLED1_Pin, RLED2_Pin, YLED1_Pin, YLED2_Pin, GLED1_Pin, GLED2_Pin};
-
 Codec codec;
 /* USER CODE END PV */
 
@@ -125,9 +118,12 @@ int main(void)
   }
 
   //Get ADC Flag register and Power Status Register and send them through UART
+  char buff[100];
+  uint8_t ADC_flag_reg = 0;
+  uint8_t power_stat_reg = 0;
   Codec_ReadRegister(&codec, 0x24, &ADC_flag_reg);
   Codec_ReadRegister(&codec, 0x5e, &power_stat_reg);
-  uint8_t len = snprintf(buff, sizeof(buff),"ADC Flag Register: %d \n Power Status Register: %d\n\r",ADC_flag_reg,power_stat_reg);
+  uint8_t len = snprintf(buff, sizeof(buff),"ADC Flag Register: %x \n Power Status Register: %x\n\r",ADC_flag_reg,power_stat_reg);
   HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
   /* USER CODE END 2 */
 
