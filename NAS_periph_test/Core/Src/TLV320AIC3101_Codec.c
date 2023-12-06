@@ -71,17 +71,23 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//(44) un-mute right DAC
 	status = Codec_WriteRegister(codec, 0x2c, 0b00000000);
 
-	//(46) PGA_L to HPLOUT ON, volume control 0dB
-	status = Codec_WriteRegister(codec, 0x2e, 0b10000000);
+	//(46) PGA_L to HPLOUT OFF, volume control 0dB
+	status = Codec_WriteRegister(codec, 0x2e, 0b00000000);
 
 	//(51) un-mute HPLOUT, high impedance when powered down, HPLOUT fully powered
 	status = Codec_WriteRegister(codec, 0x33, 0b00001001);
 
-	//(63) PGA_R to HPROUT ON, volume control 0dB
-	status = Codec_WriteRegister(codec, 0x3f, 0b10000000);
+	//(58) un-mute HPLCOM, high impedance when powered down, HPLCOM fully powered
+	status = Codec_WriteRegister(codec, 0x3A, 0b00001101);
+
+	//(63) PGA_R to HPROUT OFF, volume control 0dB
+	status = Codec_WriteRegister(codec, 0x3f, 0b00000000);
 
 	//(65) un-mute HPROUT, high impedance when powered down, HPROUT fully powered
 	status = Codec_WriteRegister(codec, 0x41, 0b00001001);
+
+	//(72) un-mute HPRCOM, high impedance when powered down, HPRCOM fully powered
+	status = Codec_WriteRegister(codec, 0x48, 0b00001101);
 
 	//(101) CLK source selection, CLKDIV_OUT
 	status = Codec_WriteRegister(codec, 0x65, 0b00000001);

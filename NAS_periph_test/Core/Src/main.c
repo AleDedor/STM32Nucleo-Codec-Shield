@@ -71,6 +71,8 @@ static void Led_Clear(){
 	HAL_GPIO_WritePin(GPIOA, RLED1_Pin|RLED2_Pin|YLED1_Pin|YLED2_Pin|GLED1_Pin|GLED2_Pin, GPIO_PIN_RESET);
 }
 
+/* 2 DMA streams are used, 1 RX ,1 TX */
+/* move half of the receiving DMA into the half of the transimitting DMA */
 void process_half(){
 	  for(uint8_t n=0 ; n < (BUFF_SIZE/2) -1; n+=2){
 		  //LEFT
@@ -80,19 +82,20 @@ void process_half(){
 	  }
 }
 
+/* first half ready DMA callback*/
 void HAL_I2SEx_TxRxHalfCpltCallback(I2S_HandleTypeDef *hi2s){
 	outBufPtr = &tx_data[0];
 	inBufPtr = &rx_data[0];
-	process_half();
+	process_half(); // move data from RX to TX DMA
 }
-
+/* second half ready DMA callback*/
 void HAL_I2SEx_TxRxCpltCallback(I2S_HandleTypeDef *hi2s){
 	outBufPtr = &tx_data[BUFF_SIZE/2];
 	inBufPtr = &rx_data[BUFF_SIZE/2];
-	process_half();
+	process_half(); // move data from RX to TX DMA
 	i = 1;
 }
-
+/*TIMER 3 used to turn on LED every second*/
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if(htim == &htim3)
 		TIM3_ISR_FLAG = 1;
@@ -194,6 +197,14 @@ int main(void)
 		  Codec_ReadRegister(&codec, 0x29, &reg_val);
 		  uint8_t len = snprintf(buff, sizeof(buff),"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:%x\n",reg_val);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+
+      Codec_ReadRegister(&codec, 0x33, &reg_val); // let's check is not muted the out driver
+      len = snprintf(buff, sizeof(buff),"Output Power Status register:%x\n",reg_val);
+		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+      // OK, HPLOUT+HPROUT on, not short circuited
+      // OK, HPLCOM+HPRCOM on, not short circuited
+      // OK, DAC selected L2 path to high power outs + OK, not muted 
+
 	  }
 
 	  if(i==1){
