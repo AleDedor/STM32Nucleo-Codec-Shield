@@ -26,6 +26,9 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	status = Codec_WriteRegister(codec, 0x07, 0b01101010);
 	//status = Codec_WriteRegister(codec, 0x07, 0x08); //PHIL'S VERSION
 
+	//(12) Input HP filter disabled, DAC filters bypassed
+	status = Codec_WriteRegister(codec, 0x0c, 0b00000000);
+
 	//(14) high-power outputs ac-coupled driver configuration
 	status = Codec_WriteRegister(codec, 0x0e, 0b10000000);
 
@@ -41,41 +44,49 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//(18) MIC2R connected to RIGTH ADC (0dB), MIC2L not connected to RIGHT ADC
 	status = Codec_WriteRegister(codec, 0x12, 0b11110000);
 
-	//(19) Turn ON LEFT ADC
-	status = Codec_WriteRegister(codec, 0x13, 0b01111100);
+	//(19) Turn ON LEFT ADC - PGA soft stepping disabled (?)
+	status = Codec_WriteRegister(codec, 0x13, 0b01111111);
 
-	//(22) Turn ON RIGHT ADC
-	status = Codec_WriteRegister(codec, 0x16, 0b01111100);
+	//(22) Turn ON RIGHT ADC - PGA soft stepping disabled (?)
+	status = Codec_WriteRegister(codec, 0x16, 0b01111111);
 
 	//(37) Turn ON RIGHT and LEFT DACs, HPLCOM set as independent single-ended output
-	status = Codec_WriteRegister(codec, 0x25, 0b11000000);
+	status = Codec_WriteRegister(codec, 0x25, 0b11100000);
 
-	//(38) HPRCOM set as independent single-ended output, short circuit protection activated
-	status = Codec_WriteRegister(codec, 0x26, 0b00000110);
+	//(38) HPRCOM set as independent single-ended output, short circuit protection activated with curr limit
+	status = Codec_WriteRegister(codec, 0x26, 0b00010100);
 
-	//(40) output common-mode voltage = 1.65 V
-	status = Codec_WriteRegister(codec, 0x28, 0b10000000);
+	//(40) output common-mode voltage = 1.65 V - output soft stepping disabled
+	status = Codec_WriteRegister(codec, 0x28, 0b10000010);
 
 	//(41) set DAC path, DAC_L2 to left high power, DAC_R2 to right high power, right-DAC volume follows left-DAC volume
 	status = Codec_WriteRegister(codec, 0x29, 0b10100000);
 
+	//(42) Pop-reduction register, band gap reference
+	status = Codec_WriteRegister(codec, 0x2a, 0b00000010);
+
 	//(43) un-mute left DAC
-	status = Codec_WriteRegister(codec, 0x2B, 0b00000000);
+	status = Codec_WriteRegister(codec, 0x2b, 0b00000000);
 
 	//(44) un-mute right DAC
-	status = Codec_WriteRegister(codec, 0x2C, 0b00000000);
+	status = Codec_WriteRegister(codec, 0x2c, 0b00000000);
+
+	//(46) PGA_L to HPLOUT ON, volume control 0dB
+	status = Codec_WriteRegister(codec, 0x2e, 0b10000000);
 
 	//(51) un-mute HPLOUT, high impedance when powered down, HPLOUT fully powered
-	status = Codec_WriteRegister(codec, 0x33, 0b00001101);
+	status = Codec_WriteRegister(codec, 0x33, 0b00001001);
+
+	//(63) PGA_R to HPROUT ON, volume control 0dB
+	status = Codec_WriteRegister(codec, 0x3f, 0b10000000);
 
 	//(65) un-mute HPROUT, high impedance when powered down, HPROUT fully powered
-	status = Codec_WriteRegister(codec, 0x41, 0b00001111);
+	status = Codec_WriteRegister(codec, 0x41, 0b00001001);
 
 	//(101) CLK source selection, CLKDIV_OUT
 	status = Codec_WriteRegister(codec, 0x65, 0b00000001);
 
-	//(46)
-	//status = Codec_WriteRegister(codec, 0x2e, 0b10000000);
+
 
 	//(63)
 	//status = Codec_WriteRegister(codec, 0x3f, 0b10000000);

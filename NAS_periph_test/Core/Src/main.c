@@ -162,7 +162,7 @@ int main(void)
 
 
   //Get ADC Flag register and Power Status Register and send them through UART
-  uint8_t ADC_flag_reg;
+  uint8_t reg_val;
   //uint8_t power_stat_reg;
   //(36) c
   //Codec_ReadRegister(&codec, 0x24, &ADC_flag_reg);
@@ -191,8 +191,8 @@ int main(void)
 		  }
 		  TIM3_ISR_FLAG = 0;
 
-		  Codec_ReadRegister(&codec, 0x29, &ADC_flag_reg);
-		  uint8_t len = snprintf(buff, sizeof(buff),"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:%x\n",ADC_flag_reg);
+		  Codec_ReadRegister(&codec, 0x29, &reg_val);
+		  uint8_t len = snprintf(buff, sizeof(buff),"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:%x\n",reg_val);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 	  }
 
@@ -201,6 +201,7 @@ int main(void)
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 		  i = 0;
 	  }
+	  HAL_Delay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
