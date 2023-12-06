@@ -20,11 +20,8 @@
 #define HIGH 1
 #define LOW 0
 #define NUM_LEDS 6
-#define ADC_DAC_SAMPL_RATE 0x00 /* f_ref/1 */
-#define F_REF 0x00 /*48kHz*/
 #define TIMEOUT 500
-#define PLL_REG_A 0b00010000 /*after reset value*/
-#define CDC_BYPASS_REG 0b00110011 /*bypass only line 1*/
+#define BUFF_SIZE 100
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -36,6 +33,8 @@
 I2C_HandleTypeDef hi2c1;
 
 I2S_HandleTypeDef hi2s2;
+DMA_HandleTypeDef hdma_i2s2_ext_rx;
+DMA_HandleTypeDef hdma_spi2_tx;
 
 TIM_HandleTypeDef htim3;
 
@@ -45,11 +44,18 @@ UART_HandleTypeDef huart2;
 uint8_t TIM3_ISR_FLAG = 0;
 uint16_t LED_PIN[NUM_LEDS]={RLED1_Pin, RLED2_Pin, YLED1_Pin, YLED2_Pin, GLED1_Pin, GLED2_Pin};
 Codec codec;
+uint16_t rx_data[BUFF_SIZE];
+uint16_t tx_data[BUFF_SIZE];
+static volatile uint16_t* inBufPtr;
+static volatile uint16_t* outBufPtr = &tx_data[0];
+char buff[100];
+int i = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
@@ -62,14 +68,36 @@ static void Led_Clear();
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 static void Led_Clear(){
-	HAL_GPIO_WritePin(GPIOA, RLED1_Pin|RLED2_Pin|YLED1_Pin
-	                          |YLED2_Pin|GLED1_Pin|GLED2_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, RLED1_Pin|RLED2_Pin|YLED1_Pin|YLED2_Pin|GLED1_Pin|GLED2_Pin, GPIO_PIN_RESET);
+}
+
+void process_half(){
+	  for(uint8_t n=0 ; n < (BUFF_SIZE/2) -1; n+=2){
+		  //LEFT
+		  outBufPtr[n]=inBufPtr[n];
+		  //RIGHT
+		  outBufPtr[n+1]=inBufPtr[n+1];
+	  }
+}
+
+void HAL_I2SEx_TxRxHalfCpltCallback(I2S_HandleTypeDef *hi2s){
+	outBufPtr = &tx_data[0];
+	inBufPtr = &rx_data[0];
+	process_half();
+}
+
+void HAL_I2SEx_TxRxCpltCallback(I2S_HandleTypeDef *hi2s){
+	outBufPtr = &tx_data[BUFF_SIZE/2];
+	inBufPtr = &rx_data[BUFF_SIZE/2];
+	process_half();
+	i = 1;
 }
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if(htim == &htim3)
 		TIM3_ISR_FLAG = 1;
 }
+
 /* USER CODE END 0 */
 
 /**
@@ -79,7 +107,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  uint8_t led_index = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -100,52 +128,82 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   MX_TIM3_Init();
   MX_I2S2_Init();
-
   /* USER CODE BEGIN 2 */
-  /* Start the Timer 3 to turn on LEDS */
-  HAL_TIM_Base_Start_IT(&htim3);
+
 
   /* Codec Setup */
   if(Codec_Init(&codec, &hi2c1) != HAL_OK){
-	  HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_SET);
-  }
+	  while(1){
+	  		  HAL_GPIO_TogglePin(GPIOA, LD2_Pin);
+	  		  HAL_Delay(300);
+	  }}
   else{
-	  HAL_GPIO_WritePin(GPIOA, LD2_Pin, GPIO_PIN_RESET);
+	  uint8_t len = snprintf(buff, sizeof(buff),"Inizializzazione riuscita\n");
+	  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
   }
 
+  if(HAL_I2SEx_TransmitReceive_DMA(&hi2s2, (uint16_t*)tx_data, (uint16_t*)rx_data, BUFF_SIZE) != HAL_OK){
+	  while(1){
+		  HAL_GPIO_TogglePin(GPIOA, LD2_Pin);
+		  HAL_Delay(300);
+	  }}
+  else{
+	  uint8_t len = snprintf(buff, sizeof(buff),"Startato DMA per I2S\n\n");
+	  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+  }
+
+  //Start the Timer 3 to turn on LEDS
+  HAL_TIM_Base_Start_IT(&htim3);
+
+
   //Get ADC Flag register and Power Status Register and send them through UART
-  char buff[100];
-  uint8_t ADC_flag_reg = 0;
-  uint8_t power_stat_reg = 0;
-  Codec_ReadRegister(&codec, 0x24, &ADC_flag_reg);
-  Codec_ReadRegister(&codec, 0x5e, &power_stat_reg);
-  uint8_t len = snprintf(buff, sizeof(buff),"ADC Flag Register: %x \n Power Status Register: %x\n\r",ADC_flag_reg,power_stat_reg);
-  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+  uint8_t ADC_flag_reg;
+  //uint8_t power_stat_reg;
+  //(36) c
+  //Codec_ReadRegister(&codec, 0x24, &ADC_flag_reg);
+  //(94) c6
+  //Codec_ReadRegister(&codec, 0x5e, &power_stat_reg);
+  //Codec_ReadRegister(&codec, 0x13, &ADC_flag_reg);
+  //Codec_ReadRegister(&codec, 0x16, &ADC_right);
+  //uint8_t len = snprintf(buff, sizeof(buff),"ADC Flag Register:%x \nPower Status Register:%x \n\rADC_left: %x \nADC_right: %x \n",ADC_flag_reg,power_stat_reg,ADC_left,ADC_right);
+  //uint8_t len = snprintf(buff, sizeof(buff),"ADC Flag Register:%x\n",ADC_flag_reg);
+  //HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  uint8_t led_index = 0;
 
   while (1){
 	  if(TIM3_ISR_FLAG){
 		  /* set new led */
 		  HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
-
 		  led_index++;
-		  if(led_index == NUM_LEDS){
+		  if(led_index == NUM_LEDS+1){
 			  led_index = 0;
 			  /* reset leds */
 			  Led_Clear();
 		  }
 		  TIM3_ISR_FLAG = 0;
+
+		  Codec_ReadRegister(&codec, 0x29, &ADC_flag_reg);
+		  uint8_t len = snprintf(buff, sizeof(buff),"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:%x\n",ADC_flag_reg);
+		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 	  }
-  /* USER CODE END WHILE */
-  /* USER CODE BEGIN 3 */
+
+	  if(i==1){
+		  uint8_t len = snprintf(buff, sizeof(buff),"RX: %d,  TX: %d\n\r",rx_data[0],tx_data[0]);
+		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+		  i = 0;
+	  }
+    /* USER CODE END WHILE */
+
+    /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
@@ -250,7 +308,7 @@ static void MX_I2S2_Init(void)
   hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
   hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
   hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
-  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_96K;
+  hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_48K;
   hi2s2.Init.CPOL = I2S_CPOL_LOW;
   hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
   hi2s2.Init.FullDuplexMode = I2S_FULLDUPLEXMODE_ENABLE;
@@ -339,6 +397,25 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
+  /* DMA1_Stream4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
 
 }
 
