@@ -138,7 +138,6 @@ int main(void)
   MX_I2S2_Init();
   /* USER CODE BEGIN 2 */
 
-
   /* Codec Setup */
   if(Codec_Init(&codec, &hi2c1) != HAL_OK){
 	  while(1){
@@ -198,12 +197,14 @@ int main(void)
 		  uint8_t len = snprintf(buff, sizeof(buff),"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:%x\n",reg_val);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 
-      Codec_ReadRegister(&codec, 0x33, &reg_val); // let's check is not muted the out driver
+      Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
       len = snprintf(buff, sizeof(buff),"Output Power Status register:%x\n",reg_val);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
-      // OK, HPLOUT+HPROUT on, not short circuited
+      // OK, HPLOUT+HPROUT on, not short circuited, not all programmed gains are applied yet
       // OK, HPLCOM+HPRCOM on, not short circuited
       // OK, DAC selected L2 path to high power outs + OK, not muted 
+      // Read reg 11, with high input volume, i got value 0xa1 (10100001) which means both left ADC+DAC where overflowing
+      
 
 	  }
 
