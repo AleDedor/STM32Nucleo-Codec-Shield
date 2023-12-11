@@ -88,7 +88,7 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 			0x5E,	0x00,
 			0x5F,	0x00,
 			0x65,	0x01,
-			0x66,	0xA2,
+			0x66,	0x02, // MCLK
 			0x67,	0x00,
 			0x68,	0x00,
 			0x69,	0x00,
@@ -182,6 +182,9 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 
 	//(101) CLK source selection, CLKDIV_OUT
 	status = Codec_WriteRegister(codec, 0x65, 0b00000001);
+
+	//(101) CLK source selection, MCLK
+	status = Codec_WriteRegister(codec, 0x66, 0b00000001);
 
 
 

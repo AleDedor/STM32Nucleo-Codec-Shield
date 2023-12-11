@@ -1,3 +1,0 @@
-../Core/Src/TLV320AIC3101_Codec.c:5:19:Codec_Init	1
-../Core/Src/TLV320AIC3101_Codec.c:194:19:Codec_WriteRegister	2
-../Core/Src/TLV320AIC3101_Codec.c:216:19:Codec_ReadRegister	1
