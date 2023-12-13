@@ -39,7 +39,6 @@ DMA_HandleTypeDef hdma_spi2_tx;
 TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart2;
-DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 uint8_t TIM3_ISR_FLAG = 0;
@@ -75,7 +74,7 @@ static void Led_Clear(){
 /* 2 DMA streams are used, 1 RX ,1 TX */
 /* move half of the receiving DMA into the half of the transimitting DMA */
 void process_half(){
-	  for(uint8_t n=0 ; n < (BUFF_SIZE/2) -1; n+=2){
+	  for(uint8_t n=0 ; n < (BUFF_SIZE/2)-1; n+=2){
 		  //LEFT
 		  outBufPtr[n]=inBufPtr[n];
 		  //RIGHT
@@ -185,9 +184,6 @@ int main(void)
 
   while (1){
 
-//	  HAL_I2S_Receive(&hi2s2, data, sizeof(data), 1000);
-//	  HAL_I2S_Transmit(&hi2s2, data, sizeof(data), 1000);
-
 	  if(TIM3_ISR_FLAG){
 		  //set new led
 		 /* HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
@@ -214,10 +210,12 @@ int main(void)
 	  }
 
 	  if(i==1){
-		  /*Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
+		  /*
+		  Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
 		  uint8_t len = snprintf(buff, sizeof(buff),"RX: %d,  TX: %d, REG_VAL:%x\n\r",rx_data[0],tx_data[0], reg_val);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);*/
+		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 		  //HAL_UART_Transmit_DMA(&huart2, (uint8_t*)buff, 100);
+		   * */
 	  }
 	  //HAL_Delay(10);
     /* USER CODE END WHILE */
@@ -325,7 +323,7 @@ static void MX_I2S2_Init(void)
   hi2s2.Instance = SPI2;
   hi2s2.Init.Mode = I2S_MODE_MASTER_TX;
   hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
-  hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B_EXTENDED;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
   hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
   hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_48K;
   hi2s2.Init.CPOL = I2S_CPOL_LOW;
@@ -435,9 +433,6 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
-  /* DMA1_Stream6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
 
 }
 
