@@ -141,12 +141,11 @@ int main(void)
   /* Codec Setup */
   if(Codec_Init(&codec, &hi2c1) != HAL_OK){
 	  while(1){
-	  		  HAL_GPIO_TogglePin(GPIOA, LD2_Pin);
-	  		  HAL_Delay(1000);
+	  	  HAL_GPIO_TogglePin(GPIOA, LD2_Pin);
+	  	  HAL_Delay(1000);
 	  }}
   else{
-	  uint8_t len = snprintf(buff, sizeof(buff),"Inizializzazione riuscita\n");
-	  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+	  	  HAL_GPIO_WritePin(GPIOA, LD2_Pin, 0);
   }
 
   if(HAL_I2SEx_TransmitReceive_DMA(&hi2s2, (uint16_t*)tx_data, (uint16_t*)rx_data, BUFF_SIZE) != HAL_OK){
@@ -155,8 +154,7 @@ int main(void)
 		  HAL_Delay(300);
 	  }}
   else{
-	  uint8_t len = snprintf(buff, sizeof(buff),"Startato DMA per I2S\n\n");
-	  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+	  	  HAL_GPIO_WritePin(GPIOA, LD2_Pin, 0);
   }
 
   //Start the Timer 3 to turn on LEDS
@@ -186,13 +184,13 @@ int main(void)
 
 	  if(TIM3_ISR_FLAG){
 		  //set new led
-		 /* HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
+		  HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
 		  led_index++;
 		  if(led_index == NUM_LEDS+1){
 			  led_index = 0;
 			  //reset leds
 			  Led_Clear();
-		  }*/
+		  }
 		  TIM3_ISR_FLAG = 0;
 
 		 /* Codec_ReadRegister(&codec, 0x0b, &reg_val);
@@ -210,12 +208,10 @@ int main(void)
 	  }
 
 	  if(i==1){
-		  /*
 		  Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
 		  uint8_t len = snprintf(buff, sizeof(buff),"RX: %d,  TX: %d, REG_VAL:%x\n\r",rx_data[0],tx_data[0], reg_val);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 		  //HAL_UART_Transmit_DMA(&huart2, (uint8_t*)buff, 100);
-		   * */
 	  }
 	  //HAL_Delay(10);
     /* USER CODE END WHILE */
