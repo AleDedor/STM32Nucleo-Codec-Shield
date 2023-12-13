@@ -182,24 +182,25 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   while (1){
+
 	  if(TIM3_ISR_FLAG){
-		  /* set new led */
-		  HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
+		  //set new led
+		 /* HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
 		  led_index++;
 		  if(led_index == NUM_LEDS+1){
 			  led_index = 0;
-			  /* reset leds */
+			  //reset leds
 			  Led_Clear();
-		  }
+		  }*/
 		  TIM3_ISR_FLAG = 0;
 
-		  Codec_ReadRegister(&codec, 0x29, &reg_val);
-		  uint8_t len = snprintf(buff, sizeof(buff),"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:%x\n",reg_val);
+		 /* Codec_ReadRegister(&codec, 0x0b, &reg_val);
+		  uint8_t len = snprintf(buff, sizeof(buff),"ADC-DAC overflow:%x\n",reg_val);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 
-      Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
-      len = snprintf(buff, sizeof(buff),"Output Power Status register:%x\n",reg_val);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+		  Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
+		  int len = snprintf(buff, sizeof(buff),"Reg Val=%x \n\r",reg_val);
+		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);*/
       // OK, HPLOUT+HPROUT on, not short circuited, not all programmed gains are applied yet
       // OK, HPLCOM+HPRCOM on, not short circuited
       // OK, DAC selected L2 path to high power outs + OK, not muted 
@@ -209,11 +210,12 @@ int main(void)
 	  }
 
 	  if(i==1){
-		  uint8_t len = snprintf(buff, sizeof(buff),"RX: %d,  TX: %d\n\r",rx_data[0],tx_data[0]);
+		  Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
+		  uint8_t len = snprintf(buff, sizeof(buff),"RX: %d,  TX: %d, REG_VAL:%x\n\r",rx_data[0],tx_data[0], reg_val);
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 		  i = 0;
 	  }
-	  HAL_Delay(100);
+	  //HAL_Delay(10);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -320,7 +322,7 @@ static void MX_I2S2_Init(void)
   hi2s2.Init.Mode = I2S_MODE_MASTER_TX;
   hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
   hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
-  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
+  hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_DISABLE;
   hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_48K;
   hi2s2.Init.CPOL = I2S_CPOL_LOW;
   hi2s2.Init.ClockSource = I2S_CLOCK_PLL;
