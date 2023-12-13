@@ -33,10 +33,13 @@
 I2C_HandleTypeDef hi2c1;
 
 I2S_HandleTypeDef hi2s2;
+DMA_HandleTypeDef hdma_i2s2_ext_rx;
+DMA_HandleTypeDef hdma_spi2_tx;
 
 TIM_HandleTypeDef htim3;
 
 UART_HandleTypeDef huart2;
+DMA_HandleTypeDef hdma_usart2_tx;
 
 /* USER CODE BEGIN PV */
 uint8_t TIM3_ISR_FLAG = 0;
@@ -53,6 +56,7 @@ int i = 0;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM3_Init(void);
@@ -128,6 +132,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   MX_TIM3_Init();
@@ -138,7 +143,7 @@ int main(void)
   if(Codec_Init(&codec, &hi2c1) != HAL_OK){
 	  while(1){
 	  		  HAL_GPIO_TogglePin(GPIOA, LD2_Pin);
-	  		  HAL_Delay(300);
+	  		  HAL_Delay(1000);
 	  }}
   else{
 	  uint8_t len = snprintf(buff, sizeof(buff),"Inizializzazione riuscita\n");
@@ -208,12 +213,12 @@ int main(void)
 
 	  }
 
-/*	  if(i==1){
-		  Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
+	  if(i==1){
+		  /*Codec_ReadRegister(&codec, 0x0b, &reg_val); // let's check is not muted the out driver
 		  uint8_t len = snprintf(buff, sizeof(buff),"RX: %d,  TX: %d, REG_VAL:%x\n\r",rx_data[0],tx_data[0], reg_val);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
-		  i = 0;
-	  }*/
+		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);*/
+		  //HAL_UART_Transmit_DMA(&huart2, (uint8_t*)buff, 100);
+	  }
 	  //HAL_Delay(10);
     /* USER CODE END WHILE */
 
@@ -320,7 +325,7 @@ static void MX_I2S2_Init(void)
   hi2s2.Instance = SPI2;
   hi2s2.Init.Mode = I2S_MODE_MASTER_TX;
   hi2s2.Init.Standard = I2S_STANDARD_PHILIPS;
-  hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B;
+  hi2s2.Init.DataFormat = I2S_DATAFORMAT_16B_EXTENDED;
   hi2s2.Init.MCLKOutput = I2S_MCLKOUTPUT_ENABLE;
   hi2s2.Init.AudioFreq = I2S_AUDIOFREQ_48K;
   hi2s2.Init.CPOL = I2S_CPOL_LOW;
@@ -411,6 +416,28 @@ static void MX_USART2_UART_Init(void)
   /* USER CODE BEGIN USART2_Init 2 */
 
   /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
+  /* DMA1_Stream4_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
+  /* DMA1_Stream6_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream6_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream6_IRQn);
 
 }
 

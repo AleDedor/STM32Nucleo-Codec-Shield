@@ -9,5 +9,5 @@
 ../Core/Src/stm32f4xx_it.c:186:6:SysTick_Handler	1
 ../Core/Src/stm32f4xx_it.c:207:6:DMA1_Stream3_IRQHandler	1
 ../Core/Src/stm32f4xx_it.c:221:6:DMA1_Stream4_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:235:6:TIM3_IRQHandler	1
-../Core/Src/stm32f4xx_it.c:249:6:SPI2_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:235:6:DMA1_Stream6_IRQHandler	1
+../Core/Src/stm32f4xx_it.c:249:6:TIM3_IRQHandler	1

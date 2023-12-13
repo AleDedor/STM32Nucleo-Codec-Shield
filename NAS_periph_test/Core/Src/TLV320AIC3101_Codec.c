@@ -10,7 +10,7 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	HAL_StatusTypeDef status;
 
 	//Wait power on reset for the CODEC
-	HAL_Delay(RESET_TIME);
+	//HAL_Delay(RESET_TIME);
 
 	//(1) software reset
 	status = Codec_WriteRegister(codec, 0x01, 0b10000000);
@@ -21,7 +21,7 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 
 	//(3)We want fs_ref=48kHz, MCLK = 12.288 MHz, CODEC_CLK=fs_ref*256=12.288MHz, with  CODEC_CLK = MCLK*2/Q -> Q=2
 	//status = Codec_WriteRegister(codec, 0x03, 0b01000000);
-	status = Codec_WriteRegister(codec, 0x03, 0b10010000);
+	status = Codec_WriteRegister(codec, 0x03, 0b10010001);
 
 	//(7) fs=48kHz, ADC-DAC dual rate OFF, left-DAC data path plays left-channel input data, right-DAC data path plays right-channel input data
 	status = Codec_WriteRegister(codec, 0x07, 0b00001010);
@@ -81,7 +81,7 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//status = Codec_WriteRegister(codec, 0x2f, 0b10000000);
 
 	//(51) un-mute HPLOUT, 9dB, high impedance when powered down, HPLOUT fully powered
-	status = Codec_WriteRegister(codec, 0x33, 0b01001101);
+	status = Codec_WriteRegister(codec, 0x33, 0b10011101);
 	//status = Codec_WriteRegister(codec, 0x33, 0b00001101);//Gieff
 
 	//(58) un-mute HPLCOM, high impedance when powered down, HPLCOM fully powered
@@ -94,7 +94,7 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	//status = Codec_WriteRegister(codec, 0x3f, 0b00000000);
 
 	//(65) un-mute HPROUT, 9dB, high impedance when powered down, HPROUT fully powered
-	status = Codec_WriteRegister(codec, 0x41, 0b01001101);
+	status = Codec_WriteRegister(codec, 0x41, 0b10011101);
 	//status = Codec_WriteRegister(codec, 0x41, 0b00001101); //gieff
 
 	//(72) un-mute HPRCOM, high impedance when powered down, HPRCOM fully powered
