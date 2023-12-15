@@ -21,7 +21,7 @@
 #define LOW 0
 #define NUM_LEDS 6
 #define TIMEOUT 500
-#define BUFF_SIZE 100
+#define BUFF_SIZE 10
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -33,8 +33,8 @@
 I2C_HandleTypeDef hi2c1;
 
 I2S_HandleTypeDef hi2s2;
-DMA_HandleTypeDef hdma_i2s2_ext_rx;
 DMA_HandleTypeDef hdma_spi2_tx;
+DMA_HandleTypeDef hdma_i2s2_ext_rx;
 
 TIM_HandleTypeDef htim3;
 
@@ -44,12 +44,12 @@ UART_HandleTypeDef huart2;
 uint8_t TIM3_ISR_FLAG = 0;
 uint16_t LED_PIN[NUM_LEDS]={RLED1_Pin, RLED2_Pin, YLED1_Pin, YLED2_Pin, GLED1_Pin, GLED2_Pin};
 Codec codec;
+// buffer of sound data where odd indexes are left channel, even are right one
 uint16_t rx_data[BUFF_SIZE];
 uint16_t tx_data[BUFF_SIZE];
 static volatile uint16_t* inBufPtr;
 static volatile uint16_t* outBufPtr = &tx_data[0];
 char buff[100];
-int i = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -74,26 +74,26 @@ static void Led_Clear(){
 /* 2 DMA streams are used, 1 RX ,1 TX */
 /* move half of the receiving DMA into the half of the transimitting DMA */
 void process_half(){
-	  for(uint8_t n=0 ; n < (BUFF_SIZE/2) -1; n+=2){
+	  for(uint8_t n=0 ; n < (BUFF_SIZE/2) - 1; n++){
 		  //LEFT
-		  outBufPtr[n]=inBufPtr[n];
+		  *(outBufPtr+n)=*(inBufPtr+n);
 		  //RIGHT
-		  outBufPtr[n+1]=inBufPtr[n+1];
+		  //outBufPtr[n+1]=inBufPtr[n+1];
 	  }
 }
 
 /* first half ready DMA callback*/
 void HAL_I2SEx_TxRxHalfCpltCallback(I2S_HandleTypeDef *hi2s){
-	outBufPtr = &tx_data[0];
-	inBufPtr = &rx_data[0];
+	inBufPtr = rx_data; // pointing to rx_data of DMA
+	outBufPtr = tx_data; // pointing to tx_data of DMA
 	process_half(); // move data from RX to TX DMA
+
 }
 /* second half ready DMA callback*/
 void HAL_I2SEx_TxRxCpltCallback(I2S_HandleTypeDef *hi2s){
-	outBufPtr = &tx_data[BUFF_SIZE/2];
-	inBufPtr = &rx_data[BUFF_SIZE/2];
+	inBufPtr = (rx_data + BUFF_SIZE/2);
+	outBufPtr = (tx_data + BUFF_SIZE/2);
 	process_half(); // move data from RX to TX DMA
-	i = 1;
 }
 /*TIMER 3 used to turn on LED every second*/
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
@@ -150,7 +150,7 @@ int main(void)
 	  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
   }
 
-  if(HAL_I2SEx_TransmitReceive_DMA(&hi2s2, (uint16_t*)tx_data, (uint16_t*)rx_data, BUFF_SIZE) != HAL_OK){
+  if(HAL_I2SEx_TransmitReceive_DMA(&hi2s2, tx_data, rx_data, BUFF_SIZE) != HAL_OK){
 	  while(1){
 		  HAL_GPIO_TogglePin(GPIOA, LD2_Pin);
 		  HAL_Delay(300);
@@ -162,20 +162,6 @@ int main(void)
 
   //Start the Timer 3 to turn on LEDS
   HAL_TIM_Base_Start_IT(&htim3);
-
-
-  //Get ADC Flag register and Power Status Register and send them through UART
-  uint8_t reg_val;
-  //uint8_t power_stat_reg;
-  //(36) c
-  //Codec_ReadRegister(&codec, 0x24, &ADC_flag_reg);
-  //(94) c6
-  //Codec_ReadRegister(&codec, 0x5e, &power_stat_reg);
-  //Codec_ReadRegister(&codec, 0x13, &ADC_flag_reg);
-  //Codec_ReadRegister(&codec, 0x16, &ADC_right);
-  //uint8_t len = snprintf(buff, sizeof(buff),"ADC Flag Register:%x \nPower Status Register:%x \n\rADC_left: %x \nADC_right: %x \n",ADC_flag_reg,power_stat_reg,ADC_left,ADC_right);
-  //uint8_t len = snprintf(buff, sizeof(buff),"ADC Flag Register:%x\n",ADC_flag_reg);
-  //HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
 
   /* USER CODE END 2 */
 
@@ -193,26 +179,12 @@ int main(void)
 			  Led_Clear();
 		  }
 		  TIM3_ISR_FLAG = 0;
-
-		  Codec_ReadRegister(&codec, 0x29, &reg_val);
-		  uint8_t len = snprintf(buff, sizeof(buff),"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:%x\n",reg_val);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
-
-      Codec_ReadRegister(&codec, 0x33, &reg_val); // let's check is not muted the out driver
-      len = snprintf(buff, sizeof(buff),"Output Power Status register:%x\n",reg_val);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
       // OK, HPLOUT+HPROUT on, not short circuited
       // OK, HPLCOM+HPRCOM on, not short circuited
       // OK, DAC selected L2 path to high power outs + OK, not muted 
 
 	  }
 
-	  if(i==1){
-		  uint8_t len = snprintf(buff, sizeof(buff),"RX: %d,  TX: %d\n\r",rx_data[0],tx_data[0]);
-		  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
-		  i = 0;
-	  }
-	  HAL_Delay(100);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
