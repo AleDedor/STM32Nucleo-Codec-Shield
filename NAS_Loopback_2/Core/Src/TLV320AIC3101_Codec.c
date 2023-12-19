@@ -9,8 +9,6 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 
 	HAL_StatusTypeDef status;
 
-	//Wait power on reset for the CODEC
-	//HAL_Delay(RESET_TIME);
 
 	//(1) software reset
 	status = Codec_WriteRegister(codec, 0x01, 0b10000000);
@@ -58,8 +56,8 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	status = Codec_WriteRegister(codec, 0x26, 0b00001100);
 	//status = Codec_WriteRegister(codec, 0x26, 0b00100000);//Gieff
 
-	//(40) output common-mode voltage = 1.35 V - output soft stepping each fs
-	status = Codec_WriteRegister(codec, 0x28, 0b00000000);
+	//(40) output common-mode voltage = 1.65 V - output soft stepping each fs
+	status = Codec_WriteRegister(codec, 0x28, 0b10000010);
 
 	//(41) set DAC path, DAC_L2 to left high power, DAC_R2 to right high power, independent volume
 	status = Codec_WriteRegister(codec, 0x29, 0b10100000);
@@ -107,7 +105,7 @@ HAL_StatusTypeDef Codec_Init(Codec *codec, I2C_HandleTypeDef *I2Chandle){
 	status = Codec_WriteRegister(codec, 0x66, 0b00000010);
 
 	//(109) DAC quiescent current 50% increase
-	status = Codec_WriteRegister(codec, 0x6d, 0b11000000);
+	//status = Codec_WriteRegister(codec, 0x6d, 0b11000000);
 
 	return status;
 }

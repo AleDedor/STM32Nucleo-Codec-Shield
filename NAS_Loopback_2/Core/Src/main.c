@@ -22,6 +22,7 @@
 #define NUM_LEDS 6
 #define TIMEOUT 500
 #define BUFF_SIZE 10
+#define RESET_TIME 50 
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -76,7 +77,7 @@ static void Led_Clear(){
 void process_half(){
 	  for(uint8_t n=0 ; n < (BUFF_SIZE/2) - 1; n++){
 		  //LEFT
-		  *(outBufPtr+n)=*(inBufPtr+n);
+		  *(outBufPtr+n)=*(inBufPtr+n); //tx_data --> rx_data
 		  //RIGHT
 		  //outBufPtr[n+1]=inBufPtr[n+1];
 	  }
@@ -95,11 +96,22 @@ void HAL_I2SEx_TxRxCpltCallback(I2S_HandleTypeDef *hi2s){
 	outBufPtr = (tx_data + BUFF_SIZE/2);
 	process_half(); // move data from RX to TX DMA
 }
+/*
+void HAL_I2S_RxHalfCpltCallback(I2S_HandleTypeDef *hi2s){
+	//HAL_I2S_Transmit_(hi2s, rx_data, BUFF_SIZE/2, 10);
+	HAL_I2S_Transmit_DMA(&hi2s2, rx_data, BUFF_SIZE/2);
+}
+void HAL_I2S_RxCpltCallback(I2S_HandleTypeDef *hi2s){
+	//HAL_I2S_Transmit(hi2s, (rx_data + BUFF_SIZE/2), BUFF_SIZE/2, 10);
+	HAL_I2S_Transmit_DMA(&hi2s2, (rx_data + BUFF_SIZE/2), BUFF_SIZE/2);
+}
+*/
 /*TIMER 3 used to turn on LED every second*/
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 	if(htim == &htim3)
 		TIM3_ISR_FLAG = 1;
 }
+
 
 /* USER CODE END 0 */
 
@@ -110,7 +122,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim){
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  uint8_t led_index = 0;
+  uint8_t led_index = 0, len = 0, reg_val = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -138,6 +150,9 @@ int main(void)
   MX_I2S2_Init();
   /* USER CODE BEGIN 2 */
 
+  /* Wait for Codec HW reset */
+  HAL_Delay(RESET_TIME);
+
 
   /* Codec Setup */
   if(Codec_Init(&codec, &hi2c1) != HAL_OK){
@@ -146,19 +161,48 @@ int main(void)
 	  		  HAL_Delay(300);
 	  }}
   else{
-	  uint8_t len = snprintf(buff, sizeof(buff),"Inizializzazione riuscita\n");
+	  len = snprintf(buff, sizeof(buff),"Inizializzazione Codec riuscita.\r\n");
 	  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
   }
 
+  /* Check registers value to be ok */
+  Codec_ReadRegister(&codec, 0x0B, &reg_val);
+  len = snprintf(buff, sizeof(buff),"Registro 11: %x \r\n", reg_val);
+  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+  HAL_Delay(10);
+
+  Codec_ReadRegister(&codec, 0x24, &reg_val);
+  len = snprintf(buff, sizeof(buff),"Registro 36: %x \r\n", reg_val);
+  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+  HAL_Delay(10);
+
+  Codec_ReadRegister(&codec, 0x5E, &reg_val);
+  len = snprintf(buff, sizeof(buff),"Registro 94: %x \r\n", reg_val);
+  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+  HAL_Delay(10);
+
+  Codec_ReadRegister(&codec, 0x5F, &reg_val);
+  len = snprintf(buff, sizeof(buff),"Registro 95: %x \r\n", reg_val);
+  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+  HAL_Delay(10);
+
+  Codec_ReadRegister(&codec, 0x60, &reg_val);
+  len = snprintf(buff, sizeof(buff),"Registro 96: %x \r\n", reg_val);
+  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
+
+  HAL_Delay(TIMEOUT);
+
+  /* Start I2S with DMA */
   if(HAL_I2SEx_TransmitReceive_DMA(&hi2s2, tx_data, rx_data, BUFF_SIZE) != HAL_OK){
 	  while(1){
 		  HAL_GPIO_TogglePin(GPIOA, LD2_Pin);
 		  HAL_Delay(300);
 	  }}
   else{
-	  uint8_t len = snprintf(buff, sizeof(buff),"Startato DMA per I2S\n\n");
+	  len = snprintf(buff, sizeof(buff),"Startato DMA per I2S\n\n");
 	  HAL_UART_Transmit(&huart2, (uint8_t*)buff, len, 100);
   }
+
 
   //Start the Timer 3 to turn on LEDS
   HAL_TIM_Base_Start_IT(&htim3);
@@ -184,6 +228,8 @@ int main(void)
       // OK, DAC selected L2 path to high power outs + OK, not muted 
 
 	  }
+
+	  //HAL_I2S_Receive_DMA(&hi2s2, rx_data, BUFF_SIZE);
 
     /* USER CODE END WHILE */
 
