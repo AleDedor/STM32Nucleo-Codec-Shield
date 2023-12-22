@@ -1,0 +1,25 @@
+15:52:33 **** Incremental Build of configuration Debug for project NAS_Loopback_2 ****
+make -j12 all 
+arm-none-eabi-gcc "../Core/Src/main.c" -mcpu=cortex-m4 -std=gnu11 -g3 -DDEBUG -DUSE_HAL_DRIVER -DSTM32F401xE -c -I../Core/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc -I../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy -I../Drivers/CMSIS/Device/ST/STM32F4xx/Include -I../Drivers/CMSIS/Include -O0 -ffunction-sections -fdata-sections -Wall -fstack-usage -fcyclomatic-complexity -MMD -MP -MF"Core/Src/main.d" -MT"Core/Src/main.o" --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -o "Core/Src/main.o"
+../Core/Src/main.c: In function 'main':
+../Core/Src/main.c:160:11: warning: unused variable 'led_index' [-Wunused-variable]
+  160 |   uint8_t led_index = 0, len = 0, reg_val = 0;
+      |           ^~~~~~~~~
+arm-none-eabi-gcc -o "NAS_Loopback_2.elf" @"objects.list"   -mcpu=cortex-m4 -T"/home/luca/Documents/AdvancedOS/Project/STM32Nucleo-Codec-Shield/NAS_Loopback_2/STM32F401RETX_FLASH.ld" --specs=nosys.specs -Wl,-Map="NAS_Loopback_2.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+Finished building target: NAS_Loopback_2.elf
+ 
+arm-none-eabi-size   NAS_Loopback_2.elf 
+arm-none-eabi-objdump -h -S  NAS_Loopback_2.elf  > "NAS_Loopback_2.list"
+   text	   data	    bss	    dec	    hex	filename
+  26056	    116	   2700	  28872	   70c8	NAS_Loopback_2.elf
+Finished building: default.size.stdout
+ 
+Finished building: NAS_Loopback_2.list
+ 
+15:52:37 **** Incremental Build of configuration Debug for project NAS_Loopback_2 ****
+make -j12 all 
+arm-none-eabi-size   NAS_Loopback_2.elf 
+   text	   data	    bss	    dec	    hex	filename
+  26056	    116	   2700	  28872	   70c8	NAS_Loopback_2.elf
+Finished building: default.size.stdout
+ 
