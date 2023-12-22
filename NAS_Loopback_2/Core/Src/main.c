@@ -21,7 +21,7 @@
 #define LOW 0
 #define NUM_LEDS 6
 #define TIMEOUT 500
-#define BUFF_SIZE 10
+#define BUFF_SIZE 50
 #define RESET_TIME 50 
 /* USER CODE END PD */
 
@@ -73,14 +73,49 @@ static void Led_Clear(){
 }
 
 /* 2 DMA streams are used, 1 RX ,1 TX */
-/* move half of the receiving DMA into the half of the transimitting DMA */
+/* move half of the receiving DMA into the half of the transmitting DMA */
 void process_half(){
-	  for(uint8_t n=0 ; n < (BUFF_SIZE/2) - 1; n++){
-		  //LEFT
-		  *(outBufPtr+n)=*(inBufPtr+n); //tx_data --> rx_data
-		  //RIGHT
-		  //outBufPtr[n+1]=inBufPtr[n+1];
-	  }
+
+	uint16_t volume = 0;
+
+	for(uint8_t n=0 ; n < (BUFF_SIZE/2) - 1; n++){
+		//LEFT
+		*(outBufPtr+n)=*(inBufPtr+n); //tx_data --> rx_data
+		//RIGHT
+		//outBufPtr[n+1]=inBufPtr[n+1];
+
+		//VU METER FATTO MALE SOLO PER PROVARE
+		volume = (*(inBufPtr+n));
+		Led_Clear();
+		if(volume>55296){
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[0], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[1], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[2], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[3], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+		}else if(volume<55296 && volume>13824){
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[1], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[2], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[3], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+		}else if(volume<13824 && volume>4608){
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[2], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[3], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+		}else if(volume<4608 && volume>1536){
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[3], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+		}else if(volume<1536 && volume>512){
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+		}else if(volume<512 && volume>0){
+			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+		}
+	}
 }
 
 /* first half ready DMA callback*/
@@ -213,13 +248,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   while (1){
-	  if(TIM3_ISR_FLAG){
-		  /* set new led */
+	  /*if(TIM3_ISR_FLAG){
+		  //set new led
 		  HAL_GPIO_WritePin(GPIOA, LED_PIN[led_index], HIGH);
 		  led_index++;
 		  if(led_index == NUM_LEDS+1){
 			  led_index = 0;
-			  /* reset leds */
+			  //reset leds
 			  Led_Clear();
 		  }
 		  TIM3_ISR_FLAG = 0;
@@ -227,7 +262,7 @@ int main(void)
       // OK, HPLCOM+HPRCOM on, not short circuited
       // OK, DAC selected L2 path to high power outs + OK, not muted 
 
-	  }
+	  }*/
 
 	  //HAL_I2S_Receive_DMA(&hi2s2, rx_data, BUFF_SIZE);
 
