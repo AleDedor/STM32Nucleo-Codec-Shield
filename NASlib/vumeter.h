@@ -3,15 +3,10 @@
 #define VUMETER_IMPL_H
 
 #include "miosix.h"
-//#include <vector> // allows to create vector of classes
+#include "interfaces/gpio.h"
 
-// not needed here, just for reference
-typedef Gpio<GPIOA_BASE, 13> led1;
-typedef Gpio<GPIOA_BASE, 12> led2;
-typedef Gpio<GPIOA_BASE, 11> led3;
-typedef Gpio<GPIOA_BASE, 10> led4;
-typedef Gpio<GPIOA_BASE, 9> led5;
-typedef Gpio<GPIOA_BASE, 8> led6;
+using namespace miosix;
+//#include <vector> // allows to create vector of classes
 
 // inside main, initialization 
 /*Vumeter vumeter(led1::getPin(),led2::getPin(),led3::getPin(),
@@ -41,29 +36,33 @@ public:
      * \param Gled1 a Gpio class specifying the GPIO connected to the Gled1
      * \param Gled2 a Gpio class specifying the GPIO connected to the Gled2
      */
-    Vumeter(GpioPin Rled1, GpioPin Rled2, GpioPin Yled1, GpioPin Yled2, GpioPin Gled1, GpioPin Gled2);
+    Vumeter(GpioPin Rled1, GpioPin Rled2, GpioPin Yled1, GpioPin Yled2, GpioPin Gled1);
     
     /**
      * turn off all the leds
      */
     void clear();
+    void setHigh();
 
 private:
     // destructor
-    GpioPin R1, R2, Y1, Y2, G1, G2; // all the pins needed for the class
+    GpioPin R1;
+    GpioPin R2;
+    GpioPin Y1;
+    GpioPin Y2;
+    GpioPin G1; // all the pins needed for the class
 
 }
 
 // here the definition of the contructor
-Vumeter::Vumeter(GpioPin Rled1, GpioPin Rled2, GpioPin Yled1, GpioPin Yled2, GpioPin Gled1, GpioPin Gled2) 
-: R1(Rled1), R2(Rled2), Y1(Yled1), Y2(Yled2), G1(Gled1), G2(Gled2) //assign passed parameters to class variables
+Vumeter::Vumeter(GpioPin Rled1, GpioPin Rled2, GpioPin Yled1, GpioPin Yled2, GpioPin Gled1) 
+: R1(Rled1), R2(Rled2), Y1(Yled1), Y2(Yled2), G1(Gled1) //assign passed parameters to class variables
 {
     R1.mode(Mode::OUTPUT);
     R2.mode(Mode::OUTPUT);
     Y1.mode(Mode::OUTPUT);
     Y2.mode(Mode::OUTPUT);
     G1.mode(Mode::OUTPUT);
-    G2.mode(Mode::OUTPUT);
 }
 
 //definition of clear()
@@ -73,7 +72,14 @@ void Vumeter::clear(){
     Y1.low();
     Y2.low();
     G1.low();
-    G2.low();
+}
+
+void Vumeter::setHigh(){
+    R1.high();
+    R2.high();
+    Y1.high();
+    Y2.high();
+    G1.high();
 }
 
 
