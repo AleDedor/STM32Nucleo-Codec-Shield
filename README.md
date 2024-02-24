@@ -4,6 +4,10 @@ A **TLV320AIC3101-Codec** based shield targeting STM32F401RE Nucleo boards and a
 
 Aim of the project is to dive into Embedded Systems and Real-time OS in order to control Shield's functionalities and to manipulate digital audio signals.
 
+<p align="center">
+  <img src="https://github.com/AleDedor/STM32Nucleo-Codec-Shield/assets/36864265/26747aa3-b48b-4b0b-862e-ef865e008a12" width="450" />
+</p>
+
 ## Features:
 
 - 2 input audio jacks (3.5mm)
