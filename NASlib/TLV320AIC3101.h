@@ -31,6 +31,8 @@ public:
 	 */
     unsigned char I2C_Receive(unsigned char regAddress);
 
+    bool I2C_Send(unsigned char regAddress, char data);
+
 private:
 
     /** Singleton is accomplished by:
@@ -55,7 +57,6 @@ private:
     /* place here inside the class or with global scope? Logically better inside classe so only class can use it*/
     uint8_t I2C_address = 0b00110000; // codec I2C address
 
-    static void I2C_Send(unsigned char regAddress, char data);
 
 };
 

@@ -106,7 +106,7 @@ void Vumeter::showVal(unsigned int sound_val){
         threshold = (threshold << 1) | 1;
     }
 
-    clear();
+    //clear();
     if(value & 0x00000001) G1.high();
     else                   G1.low();
 
