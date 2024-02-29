@@ -4,6 +4,8 @@
 #include "miosix/kernel/scheduler/scheduler.h"
 #include "TLV320AIC3101.h"
 
+#define DMA_SxCR_CHSEL_3                     ((uint32_t)0x06000000)
+
 using namespace std;
 using namespace miosix;
 
@@ -84,7 +86,7 @@ const unsigned short * TLV320AIC3101::getReadableBuff()
 void __attribute__((naked)) DMA1_Stream3_IRQHandler()
 {
     saveContext();
-	asm volatile("bl _Z17I2SdmaHandlerImplv");
+	asm volatile("bl _Z17I2SdmaHandlerImplv"); //DA RICONTROLLARE!!!
 	restoreContext();
 }
 
@@ -127,10 +129,13 @@ static bool startRxDMA(){ //needed to make sure that the lock reaches the scopes
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&SPI2->DR); //pheripheral address set to SPI2
     DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(buffer);   //set buffer as destination
     DMA1_Stream3->NDTR = bufferSize;                               //size of buffer to fulfill
-    DMA1_Stream3->CR= DMA_SxCR_PL_1    | //High priority DMA stream
+    DMA1_Stream3->CR= DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
+                      DMA_SxCR_PL_1    | //High priority DMA stream
                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
 					  DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
 				      DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
+                      DMA_SxCR_CIRC    | //circular mode
+                      DMA_SxCR_TEIE    | //Interrupt on transfer error
 			          DMA_SxCR_TCIE    | //Interrupt on completion
 			  	      DMA_SxCR_EN;       //Start the DMA
     return true;
