@@ -24,9 +24,9 @@ public:
     /**
 	 * Start I2S communication (RX) with DMA
 	 */
-    bool I2S_startRx();
+    static bool I2S_startRx();
 
-    const unsigned short * getReadableBuff();
+    static const unsigned short * getReadableBuff();
 
     /**
 	 * \return a byte coming from the Codec specified reg. address

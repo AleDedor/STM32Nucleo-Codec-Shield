@@ -19,10 +19,10 @@ typedef Gpio<GPIOB_BASE,12> lrclk;
 typedef Gpio<GPIOC_BASE,2> sdin;
 //typedef Gpio<GPIOC_BASE,3> sdout;
 
-static const int bufferSize = 128;
-unsigned int size;
+const int bufferSize = 32;
+unsigned int size = 32;
 static Thread *waiting;
-static BufferQueue<unsigned short, bufferSize> *bq;
+BufferQueue<unsigned short, bufferSize> *bq;
 //BufferQueue<unsigned short, bufferSize, 3> bq; for version with also TX
 
 //------------------------Codec instance, Singleton pattern ------------------------------------
@@ -62,6 +62,7 @@ unsigned char TLV320AIC3101::I2C_Receive(unsigned char regAddress){
 }
 
 //-------------------------------IRQ handler function------------------------------------------------
+//void __attribute__((weak)) DMA1_Channel3_IRQHandler()
 void __attribute__((weak)) DMA1_Stream3_IRQHandler()
 {
     saveContext();
@@ -114,7 +115,7 @@ const unsigned short * TLV320AIC3101::getReadableBuff()
 }*/
 
 //--------------------------Function for starting the I2S DMA RX-----------------------------------------
-static bool startRxDMA(){ //needed to make sure that the lock reaches the scopes at the end of the startRX()
+bool startRxDMA(){ //needed to make sure that the lock reaches the scopes at the end of the startRX()
     
     unsigned short *buffer;
 
@@ -124,10 +125,11 @@ static bool startRxDMA(){ //needed to make sure that the lock reaches the scopes
 
     //Start DMA
     NVIC_ClearPendingIRQ(DMA1_Stream3_IRQn); // clear prev interrupts if pending
+    NVIC_EnableIRQ(DMA1_Stream3_IRQn);
     DMA1_Stream3->CR=0; //reset configuration register to 0
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&SPI2->DR); //pheripheral address set to SPI2
     DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(buffer);   //set buffer as destination
-    DMA1_Stream3->NDTR = bufferSize;                               //size of buffer to fulfill
+    DMA1_Stream3->NDTR = size;                               //size of buffer to fulfill
     DMA1_Stream3->CR= DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
                       DMA_SxCR_PL_1    | //High priority DMA stream
                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
@@ -143,8 +145,11 @@ static bool startRxDMA(){ //needed to make sure that the lock reaches the scopes
 
 bool TLV320AIC3101::I2S_startRx()
 {
+    bool startedDMA = false;
+    {
     FastInterruptDisableLock dLock;
-    bool startedDMA = startRxDMA();
+    startedDMA = startRxDMA();
+    }
     return startedDMA;
 }
 
@@ -159,7 +164,7 @@ void TLV320AIC3101::setup()
     {
         FastInterruptDisableLock dLock;
         //Enable DMA1 and I2S2 clocks on AHB and APB buses
-        RCC->AHB1ENR |= RCC_AHB1ENR_DMA2EN;
+        RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN;
         RCC_SYNC();
         RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
         RCC_SYNC();
