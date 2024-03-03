@@ -41,6 +41,7 @@ TLV320AIC3101::TLV320AIC3101(){}
 bool TLV320AIC3101::I2C_Send(unsigned char regAddress, char data)
 {
     bool commWorked = false;
+    delayMs(1);
     I2C::sendStart();
     I2C::send(TLV320AIC3101::I2C_address);
     I2C::send(regAddress);
@@ -124,9 +125,7 @@ bool startRxDMA(){ //needed to make sure that the lock reaches the scopes at the
     }
 
     //Start DMA
-    NVIC_ClearPendingIRQ(DMA1_Stream3_IRQn); // clear prev interrupts if pending
-    NVIC_EnableIRQ(DMA1_Stream3_IRQn);
-    DMA1_Stream3->CR=0; //reset configuration register to 0
+    DMA1_Stream3->CR = 0; //reset configuration register to 0
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&SPI2->DR); //pheripheral address set to SPI2
     DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(buffer);   //set buffer as destination
     DMA1_Stream3->NDTR = size;                               //size of buffer to fulfill
@@ -217,15 +216,15 @@ void TLV320AIC3101::setup()
     TLV320AIC3101::I2C_Send(0x66,0b00000010);
 
     //enable DMA on I2S, RX mode
-    SPI2->CR2=SPI_CR2_RXDMAEN;
+    SPI2->CR2= SPI_CR2_RXDMAEN;
     //I2S prescaler register, see pag.595. fi2s = 16M*PLLI2SN/(PLLM*PLLI2SR)=86MHz -> fs=fi2s/[32*(2*I2SDIV+ODD)*8]=47991Hz
     SPI2->I2SPR=  SPI_I2SPR_MCKOE       //mclk enable
                 | SPI_I2SPR_ODD         //ODD = 1
                 | (uint32_t)0x00000003; //I2SDIV = 3
     
-    SPI2->I2SCFGR=SPI_I2SCFGR_I2SMOD    //I2S mode selected
-                | SPI_I2SCFGR_I2SE      //I2S Enabled
-                | SPI_I2SCFGR_I2SCFG;   //Master receive
+    SPI2->I2SCFGR= SPI_I2SCFGR_I2SMOD    //I2S mode selected
+                 | SPI_I2SCFGR_I2SE      //I2S Enabled
+                 | SPI_I2SCFGR_I2SCFG;   //Master receive
 
     //set DMA interrupt priority
     NVIC_SetPriority(DMA1_Stream3_IRQn,2); //high prio
