@@ -129,16 +129,16 @@ bool startRxDMA(){ //needed to make sure that the lock reaches the scopes at the
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&SPI2->DR); //pheripheral address set to SPI2
     DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(buffer);   //set buffer as destination
     DMA1_Stream3->NDTR = size;                               //size of buffer to fulfill
-    DMA1_Stream3->CR= DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
-                      DMA_SxCR_PL_1    | //High priority DMA stream
-                      DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
-					  DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
-				      DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                      //DMA_SxCR_CIRC    | //circular mode
-                      DMA_SxCR_TEIE    | //Interrupt on transfer error
-                      DMA_SxCR_DMEIE   | //Interrupt on direct mode error
-			          DMA_SxCR_TCIE    | //Interrupt on completion
-			  	      DMA_SxCR_EN;       //Start the DMA
+    DMA1_Stream3->CR = DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
+                       DMA_SxCR_PL_1    | //High priority DMA stream
+                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
+					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
+				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
+                       DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+			           DMA_SxCR_TCIE    | //Interrupt on completion
+			  	       DMA_SxCR_EN;       //Start the DMA
+                       //DMA_SxCR_CIRC  | //circular mode
     return true;
 }
 
@@ -181,6 +181,7 @@ void TLV320AIC3101::setup()
 
         //enabling PLL for I2S and starting clock
         //PLLM = 16 (default), PLLI2SR = 3, PLLI2SN = 258 see datasheet pag.595
+        //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the olde project (? dunno why)
         RCC->PLLI2SCFGR=(3<<28) | (258<<6);
         RCC->CR |= RCC_CR_PLLI2SON;
     }
@@ -192,7 +193,7 @@ void TLV320AIC3101::setup()
     delayMs(10);
     TLV320AIC3101::I2C_Send(0x01,0b10000000);
     TLV320AIC3101::I2C_Send(0x02,0b00000000);
-    TLV320AIC3101::I2C_Send(0x01,0b00010001);
+    TLV320AIC3101::I2C_Send(0x03,0b00010001);
     TLV320AIC3101::I2C_Send(0x07,0b00001010);
     TLV320AIC3101::I2C_Send(0x0C,0b00000000);
     TLV320AIC3101::I2C_Send(0x0E,0b10001000);
