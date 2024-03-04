@@ -3,9 +3,6 @@
 #ifndef TLV320AIC3101_H
 #define TLV320AIC3101_H
 
-uint16_t bufferw[256] = {0};
-bool entrato = false;
-
 class TLV320AIC3101
 {
 public:
@@ -23,8 +20,8 @@ public:
      * 4. Enable I2S interrupts
 	 */
     void setup();
-
-    bool test();
+    void ok();
+    //bool test();
     /**
 	 * Start I2S communication (RX) with DMA
 	 */
@@ -38,6 +35,7 @@ public:
     unsigned char I2C_Receive(unsigned char regAddress);
 
     bool I2C_Send(unsigned char regAddress, char data);
+
 
 private:
 
@@ -62,7 +60,6 @@ private:
 
     /* place here inside the class or with global scope? Logically better inside classe so only class can use it*/
     uint8_t I2C_address = 0b00110000; // codec I2C address
-
 
 };
 

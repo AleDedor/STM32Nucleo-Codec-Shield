@@ -20,14 +20,13 @@ typedef Gpio<GPIOB_BASE,12> lrclk;
 typedef Gpio<GPIOC_BASE,2> sdin;
 //typedef Gpio<GPIOC_BASE,3> sdout;
 
-uint32_t register_DMA1 = 18;
-uint32_t register_DMA2 = 18;
-
-const int bufferSize = 32;
-unsigned int size = 32;
+const int bufferSize = 128;
+unsigned int size = 128;
 static Thread *waiting;
 BufferQueue<unsigned short, bufferSize> *bq;
 //BufferQueue<unsigned short, bufferSize, 3> bq; for version with also TX
+
+uint16_t bufferw[256] = {0};
 
 //------------------------Codec instance, Singleton pattern ------------------------------------
 /* Singleton is a creational design pattern that lets you ensure that a class has only one instance, 
@@ -78,17 +77,19 @@ void __attribute__((weak)) DMA1_Stream3_IRQHandler()
 void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
 {
 
+    if((DMA1->LISR) && DMA_LISR_TCIF3){
     //clear DMA1 interrupt flags
 	DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
                 DMA_LIFCR_CTEIF3  | //clear transfer error flag
                 DMA_LIFCR_CDMEIF3 | //clear direct mode error flag
+                //DMA_LIFCR_CHTIF3  | 
                 DMA_LIFCR_CFEIF3;   //clear fifo error interrupt flag
-    entrato = true;
     //mark the buffer as readable
-	/*bq->bufferFilled(size);
+	bq->bufferFilled(size);
 	waiting->IRQwakeup();
 	if(waiting->IRQgetPriority()>Thread::IRQgetCurrentThread()->IRQgetPriority())
-		Scheduler::IRQfindNextThread();*/
+		Scheduler::IRQfindNextThread();
+    }
 }
 
 //--------------------------------get a readable buffer----------------------------------------------
@@ -112,46 +113,57 @@ const unsigned short * TLV320AIC3101::getReadableBuff()
 
 //--------------------Process the bq which is not read or written------------------------------------
 
-bool TLV320AIC3101::test(){
-    //Start DMA
-    DMA1_Stream3->CR = 0; //reset configuration register to 0
-    DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //pheripheral address set to SPI2
-    DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(bufferw);   //set buffer as destination
-    DMA1_Stream3->NDTR = 256;                               //size of buffer to fulfill
-    DMA1_Stream3->CR = //DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
-                       DMA_SxCR_PL_1    | //High priority DMA stream
-                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
-					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
-				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                       DMA_SxCR_TEIE    | //Interrupt on transfer error
-                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
-			           DMA_SxCR_TCIE    | //Interrupt on completion
-			  	       DMA_SxCR_EN;       //Start the DMA
-                       //DMA_SxCR_CIRC  | //circular mode
-    entrato = false;
+/*bool TLV320AIC3101::test(){
+    if(!entrato && irq_done){
+        //Start DMA
+        DMA1_Stream3->CR = 0; //reset configuration register to 0
+        DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //pheripheral address set to SPI2
+        DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(bufferw);   //set buffer as destination
+        DMA1_Stream3->NDTR = 256;                               //size of buffer to fulfill
+        DMA1_Stream3->CR = //DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
+                        DMA_SxCR_PL_1    | //High priority DMA stream
+                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
+                        DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
+                        DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
+                        DMA_SxCR_TEIE    | //Interrupt on transfer error
+                        DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+                        DMA_SxCR_TCIE    | //Interrupt on completion
+                        DMA_SxCR_EN;       //Start the DMA
+                        //DMA_SxCR_CIRC  | //circular mode
+        irq_done = false;
+        entrato = true;
+        return false;
+    }
     return true;
+}*/
+
+void TLV320AIC3101::ok()
+{
+    FastInterruptDisableLock dLock;
+    bq->bufferEmptied();
 }
 
 //--------------------------Function for starting the I2S DMA RX-----------------------------------------
 bool startRxDMA(){ //needed to make sure that the lock reaches the scopes at the end of the startRX()
     
     unsigned short *buffer;
+    waiting=Thread::getCurrentThread();
 
     if(bq->tryGetWritableBuffer(buffer) == false){
         return false;
     }
-
+    NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
     //Start DMA
     DMA1_Stream3->CR = 0; //reset configuration register to 0
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //pheripheral address set to SPI2
     DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(buffer);   //set buffer as destination
     DMA1_Stream3->NDTR = size;                               //size of buffer to fulfill
-    DMA1_Stream3->CR = //DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
+    DMA1_Stream3->CR = DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
                        DMA_SxCR_PL_1    | //High priority DMA stream
                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
 					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
 				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                       DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       //DMA_SxCR_TEIE    | //Interrupt on transfer error
                        DMA_SxCR_DMEIE   | //Interrupt on direct mode error
 			           DMA_SxCR_TCIE    | //Interrupt on completion
 			  	       DMA_SxCR_EN;       //Start the DMA
@@ -165,8 +177,6 @@ bool TLV320AIC3101::I2S_startRx()
     {
     FastInterruptDisableLock dLock;
     startedDMA = startRxDMA();
-    register_DMA1 = DMA1->LISR;
-    register_DMA2 = DMA1_Stream3->CR;
     }
     return startedDMA;
 }
@@ -249,4 +259,7 @@ void TLV320AIC3101::setup()
     //set DMA interrupt priority
     NVIC_SetPriority(DMA1_Stream3_IRQn,2); //high prio
     NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
+
+    waiting=Thread::getCurrentThread();
+    DMA1_Stream3->CR = 0; //reset configuration register to 0
 }
