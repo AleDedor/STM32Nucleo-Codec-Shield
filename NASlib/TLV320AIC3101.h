@@ -3,6 +3,9 @@
 #ifndef TLV320AIC3101_H
 #define TLV320AIC3101_H
 
+uint16_t bufferw[256] = {0};
+bool entrato = false;
+
 class TLV320AIC3101
 {
 public:
@@ -21,6 +24,7 @@ public:
 	 */
     void setup();
 
+    bool test();
     /**
 	 * Start I2S communication (RX) with DMA
 	 */
