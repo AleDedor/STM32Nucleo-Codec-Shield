@@ -26,7 +26,8 @@ static Thread *waiting;
 BufferQueue<unsigned short, bufferSize> *bq;
 //BufferQueue<unsigned short, bufferSize, 3> bq; for version with also TX
 
-uint16_t bufferw[256] = {0};
+//uint16_t bufferw[256] = {0};
+bool DMA_working = false;
 
 //------------------------Codec instance, Singleton pattern ------------------------------------
 /* Singleton is a creational design pattern that lets you ensure that a class has only one instance, 
@@ -53,7 +54,8 @@ bool TLV320AIC3101::I2C_Send(unsigned char regAddress, char data)
     return commWorked;
 }
 
-unsigned char TLV320AIC3101::I2C_Receive(unsigned char regAddress){
+unsigned char TLV320AIC3101::I2C_Receive(unsigned char regAddress)
+{
     unsigned char data = 0;
     I2C::sendStart();
     I2C::send(TLV320AIC3101::I2C_address);
@@ -66,31 +68,30 @@ unsigned char TLV320AIC3101::I2C_Receive(unsigned char regAddress){
 }
 
 //-------------------------------IRQ handler function------------------------------------------------
-//void __attribute__((weak)) DMA1_Channel3_IRQHandler()
 void __attribute__((weak)) DMA1_Stream3_IRQHandler()
 {
     saveContext();
-	asm volatile("bl _Z17I2SdmaHandlerImplv"); //DA RICONTROLLARE!!!
+	asm volatile("bl _Z17I2SdmaHandlerImplv"); 
 	restoreContext();
 }
 
 void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
 {
-
-    if((DMA1->LISR) && DMA_LISR_TCIF3){
     //clear DMA1 interrupt flags
-	DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
+    DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
                 DMA_LIFCR_CTEIF3  | //clear transfer error flag
                 DMA_LIFCR_CDMEIF3 | //clear direct mode error flag
-                //DMA_LIFCR_CHTIF3  | 
+                DMA_LIFCR_CHTIF3  | 
                 DMA_LIFCR_CFEIF3;   //clear fifo error interrupt flag
+
+    DMA_working = false;
     //mark the buffer as readable
-	bq->bufferFilled(size);
-	waiting->IRQwakeup();
-	if(waiting->IRQgetPriority()>Thread::IRQgetCurrentThread()->IRQgetPriority())
-		Scheduler::IRQfindNextThread();
-    }
+    bq->bufferFilled(size);
+    waiting->IRQwakeup();
+    if(waiting->IRQgetPriority()>Thread::IRQgetCurrentThread()->IRQgetPriority())
+        Scheduler::IRQfindNextThread();
 }
+
 
 //--------------------------------get a readable buffer----------------------------------------------
 const unsigned short * TLV320AIC3101::getReadableBuff()
@@ -139,20 +140,19 @@ const unsigned short * TLV320AIC3101::getReadableBuff()
 
 void TLV320AIC3101::ok()
 {
-    FastInterruptDisableLock dLock;
     bq->bufferEmptied();
 }
 
 //--------------------------Function for starting the I2S DMA RX-----------------------------------------
-bool startRxDMA(){ //needed to make sure that the lock reaches the scopes at the end of the startRX()
+bool startRxDMA() //needed to make sure that the lock reaches the scopes at the end of the I2S_startRX()
+{ 
     
     unsigned short *buffer;
-    waiting=Thread::getCurrentThread();
 
-    if(bq->tryGetWritableBuffer(buffer) == false){
+    if((bq->tryGetWritableBuffer(buffer) == false) || DMA_working){
         return false;
     }
-    NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
+
     //Start DMA
     DMA1_Stream3->CR = 0; //reset configuration register to 0
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //pheripheral address set to SPI2
@@ -168,6 +168,7 @@ bool startRxDMA(){ //needed to make sure that the lock reaches the scopes at the
 			           DMA_SxCR_TCIE    | //Interrupt on completion
 			  	       DMA_SxCR_EN;       //Start the DMA
                        //DMA_SxCR_CIRC  | //circular mode
+    DMA_working = true;
     return true;
 }
 
@@ -186,6 +187,7 @@ void TLV320AIC3101::setup()
 {
     Lock<Mutex> l(mutex);
 
+    waiting=Thread::getCurrentThread();
     //allocation of memory for 2 buffer queues
     bq = new BufferQueue<unsigned short, bufferSize>();
 
@@ -211,7 +213,8 @@ void TLV320AIC3101::setup()
         //enabling PLL for I2S and starting clock
         //PLLM = 16 (default), PLLI2SR = 3, PLLI2SN = 258 see datasheet pag.595
         //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the olde project (? dunno why)
-        RCC->PLLI2SCFGR=(3<<28) | (258<<6);
+        RCC->PLLI2SCFGR=(3<<28) | (258<<6); //values suggested by datasheet
+        //RCC->PLLI2SCFGR=(5<<28) | (123<<6); //values we found
         RCC->CR |= RCC_CR_PLLI2SON;
     }
 
@@ -257,9 +260,8 @@ void TLV320AIC3101::setup()
                  | SPI_I2SCFGR_I2SCFG;   //Master receive
 
     //set DMA interrupt priority
-    NVIC_SetPriority(DMA1_Stream3_IRQn,2); //high prio
+    NVIC_SetPriority(DMA1_Stream3_IRQn,2);   //high prio
     NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
 
-    waiting=Thread::getCurrentThread();
     DMA1_Stream3->CR = 0; //reset configuration register to 0
 }
