@@ -20,8 +20,15 @@ public:
      * 4. Enable I2S interrupts
 	 */
     void setup();
+
+    /* ??? */
     void ok();
-    //bool test();
+
+    /* quickly debug I2S DMA communication, to remove later */
+    bool test();
+    /* quickly debug I2S DMA communication, to remove later */
+    bool IRQ_entrato = false;
+
     /**
 	 * Start I2S communication (RX) with DMA
 	 */

@@ -73,6 +73,7 @@ void __attribute__((weak)) DMA1_Stream3_IRQHandler()
     saveContext();
 	asm volatile("bl _Z17I2SdmaHandlerImplv"); 
 	restoreContext();
+    TLV320AIC3101::IRQ_entrato = true;
 }
 
 void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
@@ -114,8 +115,7 @@ const unsigned short * TLV320AIC3101::getReadableBuff()
 
 //--------------------Process the bq which is not read or written------------------------------------
 
-/*bool TLV320AIC3101::test(){
-    if(!entrato && irq_done){
+bool TLV320AIC3101::test(){
         //Start DMA
         DMA1_Stream3->CR = 0; //reset configuration register to 0
         DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //pheripheral address set to SPI2
@@ -131,12 +131,10 @@ const unsigned short * TLV320AIC3101::getReadableBuff()
                         DMA_SxCR_TCIE    | //Interrupt on completion
                         DMA_SxCR_EN;       //Start the DMA
                         //DMA_SxCR_CIRC  | //circular mode
-        irq_done = false;
-        entrato = true;
-        return false;
-    }
+        TLV320AIC3101::IRQ_entrato = false;
+
     return true;
-}*/
+}
 
 void TLV320AIC3101::ok()
 {
