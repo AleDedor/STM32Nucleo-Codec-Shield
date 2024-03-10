@@ -16,9 +16,9 @@ typedef SoftwareI2C<sda,scl> I2C;
 //Gpios for I2S
 typedef Gpio<GPIOC_BASE,6> mclk;
 typedef Gpio<GPIOB_BASE,10> sclk;
-typedef Gpio<GPIOB_BASE,12> lrclk;
-typedef Gpio<GPIOC_BASE,2> sdin;
-typedef Gpio<GPIOC_BASE,3> sdout;
+typedef Gpio<GPIOB_BASE,12> lrclk;  // word select
+typedef Gpio<GPIOC_BASE,2> sdin;    // I2S_ext -> MISO
+typedef Gpio<GPIOC_BASE,3> sdout;   // I2S -> MOSI
 
 const int bufferSize = 128;
 unsigned int size = 128;
@@ -65,6 +65,7 @@ unsigned char TLV320AIC3101::I2C_Receive(unsigned char regAddress)
 }
 
 //-------------------------------IRQ handler function------------------------------------------------
+/********************* DMA1_STREAM3 => I2S_ext (RX, MISO) ***********************/
 void __attribute__((weak)) DMA1_Stream3_IRQHandler()
 {
     saveContext();
@@ -85,6 +86,14 @@ void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
     waiting->IRQwakeup();
     if(waiting->IRQgetPriority()>Thread::IRQgetCurrentThread()->IRQgetPriority())
         Scheduler::IRQfindNextThread();
+}
+
+/********************* DMA1_STREAM4 => SPI2 (TX, MOSI) ***********************/
+void __attribute__((weak)) DMA1_Stream4_IRQHandler()
+{
+    saveContext();
+	//asm volatile("bl _Z17I2SdmaHandlerImplv"); 
+	restoreContext();
 }
 
 
@@ -152,7 +161,7 @@ bool TLV320AIC3101::I2S_startRx()
     return startedDMA;
 }
 
-//------------------------Codec initialization and setup method------------------------------------
+//------------------------Codec initialization and STM32 setup method------------------------------------
 void TLV320AIC3101::setup()
 {
     Lock<Mutex> l(mutex);
@@ -163,38 +172,73 @@ void TLV320AIC3101::setup()
 
     {
         FastInterruptDisableLock dLock;
+
+        /**************** I2S2, DMA1 INIT *********************/
         //Enable DMA1 and I2S2 clocks on AHB and APB buses
         RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN;
         RCC_SYNC();
         RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
         RCC_SYNC();
 
-        //GPIO configuration - alternate function #5 is associated with SPI2
+        //GPIO configuration - alternate function #5, #6 are associated with SPI2/I2S2
         I2C::init();
+
         mclk::mode(Mode::ALTERNATE);
         mclk::alternateFunction(5);
+
         sclk::mode(Mode::ALTERNATE);
         sclk::alternateFunction(5);
+
         sdin::mode(Mode::ALTERNATE);
-        sdin::alternateFunction(5);
+        sdin::alternateFunction(6);     // I2S_ext associated with AF_6
+
         sdout::mode(Mode::ALTERNATE);
-        sdout::alternateFunction(5);
+        sdout::alternateFunction(5);    // SPI2 associated with AF_5
+
         lrclk::mode(Mode::ALTERNATE);
         lrclk::alternateFunction(5);
 
         //enabling PLL for I2S and starting clock
         //PLLM = 16 (default), PLLI2SR = 3, PLLI2SN = 258 see datasheet pag.595
         //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the olde project (? dunno why)
-        RCC->PLLI2SCFGR=(3<<28) | (258<<6); //values suggested by datasheet
-        //RCC->PLLI2SCFGR=(5<<28) | (123<<6); //values we found
+        //RCC->PLLI2SCFGR=(3<<28) | (258<<6); //values suggested by datasheet
+        RCC->PLLI2SCFGR=(5<<28) | (123<<6); //values we found
         RCC->CR |= RCC_CR_PLLI2SON;
     }
 
     //wait for PLL to lock
     while((RCC->CR & RCC_CR_PLLI2SRDY)==0);
 
+    /***************** I2S SETTINGS ******************/
+    // I2S + I2Sext must be used in full duplex mode (in half duplex, only I2S can be used, not the _ext)
+    // Using Full duplex mode, I2Sext is the MISO (input)
+    //enable DMA on I2S, TX mode, no interrupts enabled by SPI2 peripheral, only DMA!
+    SPI2->CR2= SPI_CR2_TXDMAEN;
+    //I2S prescaler register, see pag.595. fi2s = 16M*PLLI2SN/(PLLM*PLLI2SR)=86MHz -> fs=fi2s/[32*(2*I2SDIV+ODD)*8]=47991Hz
+    SPI2->I2SPR=  SPI_I2SPR_MCKOE       //mclk enable
+                //| SPI_I2SPR_ODD       //ODD = 1
+                | (uint32_t)0x00000002; //I2SDIV = 3
+    
+    SPI2->I2SCFGR= SPI_I2SCFGR_I2SMOD    //I2S mode selected
+                 | SPI_I2SCFGR_I2SCFG_1; //Master transmit , this bit should be config. when I2S disabled
+                // Default settings: I2S Philips std, CKPOL low, 16 bit DATLEN, CHLEN 16 bit
+    SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;      //I2S Enabled
+
+    /********************* ENABLE DMA_IT AND SET PRIORITY ****************/
+    // DMA1_Stream3 => I2S_ext_RX
+    NVIC_SetPriority(DMA1_Stream3_IRQn,2);   //high prio
+    NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
+    DMA1_Stream3->CR = 0; //reset configuration register to 0
+
+    // DMA1_Stream4 => SPI2_TX
+    NVIC_SetPriority(DMA1_Stream4_IRQn,2);   
+    NVIC_EnableIRQ(DMA1_Stream4_IRQn);     
+    DMA1_Stream4->CR = 0; 
+
+    /******************* CODEC SETTINGS ************************/
     //Send TLV320AIC3101 configuration registers with I2C
     delayMs(10);
+
     TLV320AIC3101::I2C_Send(0x01,0b10000000);
     TLV320AIC3101::I2C_Send(0x02,0b00000000);
     TLV320AIC3101::I2C_Send(0x03,0b00010001);
@@ -220,23 +264,4 @@ void TLV320AIC3101::setup()
     TLV320AIC3101::I2C_Send(0x65,0b00000001);
     TLV320AIC3101::I2C_Send(0x66,0b00000010);
 
-    // I2S + I2Sext must be used in full duplex mode (in half duplex, only I2S can be used, not the _ext)
-    // Using Full duplex mode, I2Sext is the MISO (input)
-    //enable DMA on I2S, RX mode
-    SPI2->CR2= SPI_CR2_RXDMAEN;
-    //I2S prescaler register, see pag.595. fi2s = 16M*PLLI2SN/(PLLM*PLLI2SR)=86MHz -> fs=fi2s/[32*(2*I2SDIV+ODD)*8]=47991Hz
-    SPI2->I2SPR=  SPI_I2SPR_MCKOE       //mclk enable
-                | SPI_I2SPR_ODD         //ODD = 1
-                | (uint32_t)3; //I2SDIV = 3
-    
-    SPI2->I2SCFGR= SPI_I2SCFGR_I2SMOD    //I2S mode selected
-                 | SPI_I2SCFGR_I2SCFG;   //Master receive , this bit should be config. when I2S disabled
-
-    SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;      //I2S Enabled
-
-    //set DMA interrupt priority
-    NVIC_SetPriority(DMA1_Stream3_IRQn,2);   //high prio
-    NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
-
-    DMA1_Stream3->CR = 0; //reset configuration register to 0
 }
