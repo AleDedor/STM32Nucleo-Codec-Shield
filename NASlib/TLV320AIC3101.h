@@ -29,6 +29,12 @@ public:
 	 */
     static bool I2S_startRx();
 
+
+    /**
+	 * Start I2S communication (TX) with DMA
+	 */
+    static bool I2S_startTx();
+
     static const unsigned short * getReadableBuff();
 
     /**
