@@ -69,12 +69,12 @@ unsigned char TLV320AIC3101::I2C_Receive(unsigned char regAddress)
 void __attribute__((weak)) DMA1_Stream3_IRQHandler()
 {
     saveContext();
-	asm volatile("bl _Z17I2SdmaHandlerImplv"); 
+	asm volatile("bl _Z17I2SextdmaHandlerImplv"); 
 	restoreContext();
 }
 
-void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
-{
+void __attribute__((used)) I2SextdmaHandlerImpl() //actual function implementation
+{   // ????????????????????????????????????????????????????????
     //clear DMA1 interrupt flags
     DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
                 DMA_LIFCR_CTEIF3  | //clear transfer error flag
@@ -92,8 +92,23 @@ void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
 void __attribute__((weak)) DMA1_Stream4_IRQHandler()
 {
     saveContext();
-	//asm volatile("bl _Z17I2SdmaHandlerImplv"); 
+	asm volatile("bl _Z17I2SdmaHandlerImplv"); 
 	restoreContext();
+}
+
+void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
+{    // ????????????????????????????????????????????????????????
+    //clear DMA1 interrupt flags
+    DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
+                DMA_LIFCR_CTEIF3  | //clear transfer error flag
+                DMA_LIFCR_CDMEIF3 | //clear direct mode error flag
+                DMA_LIFCR_CHTIF3  | 
+                DMA_LIFCR_CFEIF3;   //clear fifo error interrupt flag
+    //mark the buffer as readable
+    bq->bufferFilled(size);
+    waiting->IRQwakeup();
+    if(waiting->IRQgetPriority()>Thread::IRQgetCurrentThread()->IRQgetPriority())
+        Scheduler::IRQfindNextThread();
 }
 
 
@@ -143,7 +158,7 @@ bool startRxDMA() //needed to make sure that the lock reaches the scopes at the 
                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
 					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
 				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                       //DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       DMA_SxCR_TEIE    | //Interrupt on transfer error
                        DMA_SxCR_DMEIE   | //Interrupt on direct mode error
 			           DMA_SxCR_TCIE    | //Interrupt on completion
 			  	       DMA_SxCR_EN;       //Start the DMA
@@ -157,6 +172,44 @@ bool TLV320AIC3101::I2S_startRx()
     {
     FastInterruptDisableLock dLock;
     startedDMA = startRxDMA();
+    }
+    return startedDMA;
+}
+
+//--------------------------Function for starting the I2S DMA TX-----------------------------------------
+bool startTxDMA() //needed to make sure that the lock reaches the scopes at the end of the I2S_startRX()
+{ 
+        // ????????????????????????????????????????????????????????
+    unsigned short *buffer;
+
+    if((bq->tryGetWritableBuffer(buffer) == false)){
+        return false;
+    }
+
+    //Start DMA, peripheral to memory
+    DMA1_Stream4->CR = 0; //reset configuration register to 0
+    DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(buffer); //source address, peripheral, I2Sext data register 
+    DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(&SPI2->DR);   // destination address, memory, buffer
+    DMA1_Stream4->NDTR = size;                               //size of buffer to fulfill
+    DMA1_Stream4->CR = //DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
+                       DMA_SxCR_PL_1    | //High priority DMA stream
+                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
+					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
+				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
+                       DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+			           DMA_SxCR_TCIE    | //Interrupt on completion
+			  	       DMA_SxCR_EN;       //Start the DMA
+                       //DMA_SxCR_CIRC  | //circular mode
+    return true;
+}
+
+bool TLV320AIC3101::I2S_startTx()
+{    // ????????????????????????????????????????????????????????
+    bool startedDMA = false;
+    {
+    FastInterruptDisableLock dLock;
+    startedDMA = startTxDMA();
     }
     return startedDMA;
 }
