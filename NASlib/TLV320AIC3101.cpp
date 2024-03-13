@@ -24,6 +24,8 @@ const int bufferSize = 128;
 unsigned int size = 128;
 static Thread *waiting;
 BufferQueue<unsigned short, bufferSize> *bq;
+
+unsigned int buf;
 //BufferQueue<unsigned short, bufferSize, 3> bq; for version with also TX
 
 //------------------------Codec instance, Singleton pattern ------------------------------------
@@ -62,30 +64,6 @@ unsigned char TLV320AIC3101::I2C_Receive(unsigned char regAddress)
     data = I2C::recvWithNack();
     I2C::sendStop();
     return data;
-}
-
-//-------------------------------IRQ handler function------------------------------------------------
-/********************* DMA1_STREAM3 => I2S_ext (RX, MISO) ***********************/
-void __attribute__((weak)) DMA1_Stream3_IRQHandler()
-{
-    saveContext();
-	asm volatile("bl _Z17I2SdmaHandlerImplv"); 
-	restoreContext();
-}
-
-void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
-{   // ????????????????????????????????????????????????????????
-    //clear DMA1 interrupt flags
-    DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
-                DMA_LIFCR_CTEIF3  | //clear transfer error flag
-                DMA_LIFCR_CDMEIF3 | //clear direct mode error flag
-                DMA_LIFCR_CHTIF3  | 
-                DMA_LIFCR_CFEIF3;   //clear fifo error interrupt flag
-    //mark the buffer as readable
-    bq->bufferFilled(size);
-    waiting->IRQwakeup();
-    if(waiting->IRQgetPriority()>Thread::IRQgetCurrentThread()->IRQgetPriority())
-        Scheduler::IRQfindNextThread();
 }
 
 /********************* DMA1_STREAM4 => SPI2 (TX, MOSI) ***********************/
@@ -153,7 +131,7 @@ bool startRxDMA() //needed to make sure that the lock reaches the scopes at the 
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //source address, peripheral, I2Sext data register 
     DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(buffer);   // destination address, memory, buffer
     DMA1_Stream3->NDTR = size;                               //number of data to transfer
-    DMA1_Stream3->CR = //DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
+    DMA1_Stream3->CR = DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
                        DMA_SxCR_PL_1    | //High priority DMA stream
                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
 					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
@@ -215,12 +193,37 @@ bool TLV320AIC3101::I2S_startTx()
     return startedDMA;
 }
 
+//-------------------------------IRQ handler function------------------------------------------------
+/********************* DMA1_STREAM3 => I2S_ext (RX, MISO) ***********************/
+void __attribute__((naked)) DMA1_Stream3_IRQHandler()
+{
+    saveContext();
+	asm volatile("bl _Z17I2SdmaHandlerImplv"); 
+	restoreContext();
+}
+
+void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
+{   // ????????????????????????????????????????????????????????
+    //clear DMA1 interrupt flags
+    buf = I2S2ext->DR;
+    DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
+                DMA_LIFCR_CTEIF3  | //clear transfer error flag
+                DMA_LIFCR_CDMEIF3 | //clear direct mode error flag
+                DMA_LIFCR_CHTIF3  | 
+                DMA_LIFCR_CFEIF3;   //clear fifo error interrupt flag
+    //mark the buffer as readable
+    bq->bufferFilled(size);
+    startRxDMA();
+    waiting->IRQwakeup();
+    if(waiting->IRQgetPriority()>Thread::IRQgetCurrentThread()->IRQgetPriority())
+        Scheduler::IRQfindNextThread();
+}
+
 //------------------------Codec initialization and STM32 setup method------------------------------------
 void TLV320AIC3101::setup()
 {
     Lock<Mutex> l(mutex);
 
-    waiting=Thread::getCurrentThread();
     //allocation of memory for 2 buffer queues
     bq = new BufferQueue<unsigned short, bufferSize>();
 
@@ -276,8 +279,8 @@ void TLV320AIC3101::setup()
                 | (uint32_t)0x00000002; //I2SDIV = 3
     
     SPI2->I2SCFGR= SPI_I2SCFGR_I2SMOD    //I2S mode selected
-                   | SPI_I2SCFGR_I2SCFG; //Master receive , this bit should be config. when I2S disabled
-                // | SPI_I2SCFGR_I2SCFG_1; //Master transmit , this bit should be config. when I2S disabled
+                //| SPI_I2SCFGR_I2SCFG; //Master receive , this bit should be config. when I2S disabled
+                 | SPI_I2SCFGR_I2SCFG_1; //Master transmit , this bit should be config. when I2S disabled
                 // Default settings: I2S Philips std, CKPOL low, 16 bit DATLEN, CHLEN 16 bit
     SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;      //I2S Enabled
 
@@ -287,8 +290,8 @@ void TLV320AIC3101::setup()
     NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
 
     // DMA1_Stream4 => SPI2_TX
-    /*NVIC_SetPriority(DMA1_Stream4_IRQn,2);   
-    NVIC_EnableIRQ(DMA1_Stream4_IRQn);      */
+    NVIC_SetPriority(DMA1_Stream4_IRQn,2);   
+    NVIC_EnableIRQ(DMA1_Stream4_IRQn);     
 
     /******************* CODEC SETTINGS ************************/
     //Send TLV320AIC3101 configuration registers with I2C
@@ -319,4 +322,5 @@ void TLV320AIC3101::setup()
     TLV320AIC3101::I2C_Send(0x65,0b00000001);
     TLV320AIC3101::I2C_Send(0x66,0b00000010);
 
+    waiting=Thread::getCurrentThread();
 }
