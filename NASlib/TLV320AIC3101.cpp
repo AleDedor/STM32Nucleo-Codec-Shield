@@ -25,7 +25,6 @@ unsigned int size = 128;
 static Thread *waiting;
 BufferQueue<unsigned short, bufferSize> *bq;
 
-unsigned int buf;
 //BufferQueue<unsigned short, bufferSize, 3> bq; for version with also TX
 
 //------------------------Codec instance, Singleton pattern ------------------------------------
@@ -205,7 +204,6 @@ void __attribute__((naked)) DMA1_Stream3_IRQHandler()
 void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
 {   // ????????????????????????????????????????????????????????
     //clear DMA1 interrupt flags
-    buf = I2S2ext->DR;
     DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
                 DMA_LIFCR_CTEIF3  | //clear transfer error flag
                 DMA_LIFCR_CDMEIF3 | //clear direct mode error flag
@@ -259,7 +257,7 @@ void TLV320AIC3101::setup()
         //PLLM = 16 (default), PLLI2SR = 3, PLLI2SN = 258 see datasheet pag.595
         //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the olde project (? dunno why)
         //RCC->PLLI2SCFGR=(3<<28) | (258<<6); //values suggested by datasheet
-        RCC->PLLI2SCFGR=(5<<28) | (123<<6); //values we found
+        RCC->PLLI2SCFGR=(5<<28) | (492<<6); //values we found
         RCC->CR |= RCC_CR_PLLI2SON;
     }
 
@@ -275,7 +273,7 @@ void TLV320AIC3101::setup()
     SPI2->CR2= SPI_CR2_RXDMAEN; 
     //I2S prescaler register, see pag.595. fi2s = 16M*PLLI2SN/(PLLM*PLLI2SR)=86MHz -> fs=fi2s/[32*(2*I2SDIV+ODD)*8]=47991Hz
     SPI2->I2SPR=  SPI_I2SPR_MCKOE       //mclk enable
-                //| SPI_I2SPR_ODD       //ODD = 1
+                //| SPI_I2SPR_ODD       //ODD = 1 
                 | (uint32_t)0x00000002; //I2SDIV = 3
     
     SPI2->I2SCFGR= SPI_I2SCFGR_I2SMOD    //I2S mode selected
@@ -290,8 +288,8 @@ void TLV320AIC3101::setup()
     NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
 
     // DMA1_Stream4 => SPI2_TX
-    NVIC_SetPriority(DMA1_Stream4_IRQn,2);   
-    NVIC_EnableIRQ(DMA1_Stream4_IRQn);     
+    //NVIC_SetPriority(DMA1_Stream4_IRQn,2);   
+    //NVIC_EnableIRQ(DMA1_Stream4_IRQn);     
 
     /******************* CODEC SETTINGS ************************/
     //Send TLV320AIC3101 configuration registers with I2C
