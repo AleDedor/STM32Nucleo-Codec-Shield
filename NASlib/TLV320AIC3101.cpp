@@ -1,11 +1,18 @@
 #include "miosix/kernel/scheduler/scheduler.h"
 #include "util/software_i2c.h"
 #include "TLV320AIC3101.h"
+#include <thread>
+#include "e20/e20.h"
 
 #define DMA_SxCR_CHSEL_3    ((uint32_t)0x06000000)
 
 using namespace std;
 using namespace miosix;
+
+FixedEventQueue<100,12> queue;
+
+typedef Gpio<GPIOC_BASE,9> mco2;
+
 
 
 //Gpios for I2C
@@ -124,6 +131,9 @@ bool startRxDMA() //needed to make sure that the lock reaches the scopes at the 
     if((bq->tryGetWritableBuffer(buffer) == false)){
         return false;
     }
+    queue.IRQpost([=]{
+        iprintf("buffer= %p\n",buffer);
+    });
 
     //Start DMA, peripheral to memory
     DMA1_Stream3->CR = 0; //reset configuration register to 0
@@ -147,8 +157,8 @@ bool TLV320AIC3101::I2S_startRx()
 {
     bool startedDMA = false;
     {
-    FastInterruptDisableLock dLock;
-    startedDMA = startRxDMA();
+        FastInterruptDisableLock dLock;
+        startedDMA = startRxDMA();
     }
     return startedDMA;
 }
@@ -197,13 +207,16 @@ bool TLV320AIC3101::I2S_startTx()
 void __attribute__((naked)) DMA1_Stream3_IRQHandler()
 {
     saveContext();
-	asm volatile("bl _Z17I2SdmaHandlerImplv"); 
+	asm volatile("bl _Z17I2SdmaHandlerImplv"); //_Z, num caratteri nome fun. , nome, v = void 
 	restoreContext();
 }
 
 void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
 {   // ????????????????????????????????????????????????????????
     //clear DMA1 interrupt flags
+    queue.IRQpost([=]{
+        iprintf("0x%x\n",DMA1->LISR);
+    });
     DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
                 DMA_LIFCR_CTEIF3  | //clear transfer error flag
                 DMA_LIFCR_CDMEIF3 | //clear direct mode error flag
@@ -220,6 +233,9 @@ void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
 //------------------------Codec initialization and STM32 setup method------------------------------------
 void TLV320AIC3101::setup()
 {
+    thread t([&]{ queue.run(); });
+    t.detach();
+
     Lock<Mutex> l(mutex);
 
     //allocation of memory for 2 buffer queues
@@ -238,6 +254,14 @@ void TLV320AIC3101::setup()
         //GPIO configuration - alternate function #5, #6 are associated with SPI2/I2S2
         I2C::init();
 
+        mco2::mode(Mode::ALTERNATE);
+        mco2::alternateFunction(0);
+        mco2::speed(Speed::_100MHz);
+        RCC ->CFGR |= RCC_CFGR_MCO2_0;
+        RCC ->CFGR |= RCC_CFGR_MCO2PRE_2;
+        RCC ->CFGR |= RCC_CFGR_MCO2PRE_1;
+
+
         mclk::mode(Mode::ALTERNATE);
         mclk::alternateFunction(5);
 
@@ -245,7 +269,7 @@ void TLV320AIC3101::setup()
         sclk::alternateFunction(5);
 
         sdin::mode(Mode::ALTERNATE);
-        sdin::alternateFunction(6);     // I2S_ext associated with AF_6
+        sdin::alternateFunction(6);     // I2S_ext associated with AF_6 //recheck AF...????
 
         sdout::mode(Mode::ALTERNATE);
         sdout::alternateFunction(5);    // SPI2 associated with AF_5
@@ -256,8 +280,8 @@ void TLV320AIC3101::setup()
         //enabling PLL for I2S and starting clock
         //PLLM = 16 (default), PLLI2SR = 3, PLLI2SN = 258 see datasheet pag.595
         //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the olde project (? dunno why)
-        //RCC->PLLI2SCFGR=(3<<28) | (258<<6); //values suggested by datasheet
-        RCC->PLLI2SCFGR=(5<<28) | (492<<6); //values we found
+        RCC->PLLI2SCFGR=(3<<28) | (258<<6); //values suggested by datasheet
+        //RCC->PLLI2SCFGR=(5<<28) | (492<<6); //values we found
         RCC->CR |= RCC_CR_PLLI2SON;
     }
 
@@ -270,11 +294,12 @@ void TLV320AIC3101::setup()
     //enable DMA on I2S, TX mode, no interrupts enabled by SPI2 peripheral, only DMA!
     //SPI2->CR2= SPI_CR2_TXDMAEN;
     //enable DMA on I2S, RX mode, do i have to set both rx/txdmaen ?
-    SPI2->CR2= SPI_CR2_RXDMAEN; 
+    SPI2->CR2= SPI_CR2_RXDMAEN;
+    // VCO @ 1MHz 
     //I2S prescaler register, see pag.595. fi2s = 16M*PLLI2SN/(PLLM*PLLI2SR)=86MHz -> fs=fi2s/[32*(2*I2SDIV+ODD)*8]=47991Hz
     SPI2->I2SPR=  SPI_I2SPR_MCKOE       //mclk enable
-                //| SPI_I2SPR_ODD       //ODD = 1 
-                | (uint32_t)0x00000002; //I2SDIV = 3
+                | SPI_I2SPR_ODD         //ODD = 1 
+                | (uint32_t)0x00000003; //I2SDIV = 3
     
     SPI2->I2SCFGR= SPI_I2SCFGR_I2SMOD    //I2S mode selected
                 //| SPI_I2SCFGR_I2SCFG; //Master receive , this bit should be config. when I2S disabled
@@ -288,8 +313,8 @@ void TLV320AIC3101::setup()
     NVIC_EnableIRQ(DMA1_Stream3_IRQn);     //enable interrupt
 
     // DMA1_Stream4 => SPI2_TX
-    //NVIC_SetPriority(DMA1_Stream4_IRQn,2);   
-    //NVIC_EnableIRQ(DMA1_Stream4_IRQn);     
+    NVIC_SetPriority(DMA1_Stream4_IRQn,2);   
+    NVIC_EnableIRQ(DMA1_Stream4_IRQn);     
 
     /******************* CODEC SETTINGS ************************/
     //Send TLV320AIC3101 configuration registers with I2C

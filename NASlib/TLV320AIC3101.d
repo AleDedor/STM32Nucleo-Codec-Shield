@@ -36,7 +36,8 @@
  miosix/interfaces/delays.h ../NASlib/TLV320AIC3101.h miosix/miosix.h \
  miosix/interfaces/bsp.h \
  miosix/arch/cortexM4_stm32f4/stm32f401re_nucleo/interfaces-impl/bsp_impl.h \
- miosix/kernel/sync.h miosix/kernel/queue.h miosix/util/util.h
+ miosix/kernel/sync.h miosix/kernel/queue.h miosix/util/util.h \
+ miosix/e20/e20.h miosix/e20/callback.h
 
 miosix/kernel/scheduler/scheduler.h:
 
@@ -133,3 +134,7 @@ miosix/kernel/sync.h:
 miosix/kernel/queue.h:
 
 miosix/util/util.h:
+
+miosix/e20/e20.h:
+
+miosix/e20/callback.h:
