@@ -178,7 +178,7 @@ bool startTxDMA()
     DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&SPI2->DR);   // destination address, SPI2 data reg
     DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(buffer); //source address, peripheral, memory data register
     DMA1_Stream4->NDTR = size;                               //size of buffer to fulfill
-    DMA1_Stream4->CR = //DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
+    DMA1_Stream4->CR = DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
                        DMA_SxCR_PL_1    | //High priority DMA stream
                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
 					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
@@ -212,11 +212,11 @@ void __attribute__((naked)) DMA1_Stream3_IRQHandler()
 }
 
 void __attribute__((used)) I2SdmaHandlerImpl() //actual function implementation
-{   // ????????????????????????????????????????????????????????
-    //clear DMA1 interrupt flags
+{ 
     queue.IRQpost([=]{
         iprintf("0x%x\n",DMA1->LISR);
     });
+    //clear DMA1 interrupt flags
     DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
                 DMA_LIFCR_CTEIF3  | //clear transfer error flag
                 DMA_LIFCR_CDMEIF3 | //clear direct mode error flag
@@ -251,9 +251,7 @@ void TLV320AIC3101::setup()
         RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
         RCC_SYNC();
 
-        //GPIO configuration - alternate function #5, #6 are associated with SPI2/I2S2
-        I2C::init();
-
+        //debug for output of I2S MCLK
         mco2::mode(Mode::ALTERNATE);
         mco2::alternateFunction(0);
         mco2::speed(Speed::_100MHz);
@@ -261,6 +259,8 @@ void TLV320AIC3101::setup()
         RCC ->CFGR |= RCC_CFGR_MCO2PRE_2;
         RCC ->CFGR |= RCC_CFGR_MCO2PRE_1;
 
+        //GPIO configuration - alternate function #5, #6 are associated with SPI2/I2S2
+        I2C::init();
 
         mclk::mode(Mode::ALTERNATE);
         mclk::alternateFunction(5);
@@ -289,23 +289,23 @@ void TLV320AIC3101::setup()
     while((RCC->CR & RCC_CR_PLLI2SRDY)==0);
 
     /***************** I2S SETTINGS ******************/
-    // I2S + I2Sext must be used in full duplex mode (in half duplex, only I2S can be used, not the _ext)
-    // Using Full duplex mode, I2Sext is the MISO (input)
+    //I2S + I2Sext must be used in full duplex mode (in half duplex, only I2S can be used, not the _ext)
+    //Using Full duplex mode, I2Sext is the MISO (input)
     //enable DMA on I2S, TX mode, no interrupts enabled by SPI2 peripheral, only DMA!
-    //SPI2->CR2= SPI_CR2_TXDMAEN;
+    //I2S2ext->CR2= SPI_CR2_TXDMAEN;
     //enable DMA on I2S, RX mode, do i have to set both rx/txdmaen ?
-    SPI2->CR2= SPI_CR2_RXDMAEN;
+    I2S2ext->CR2= SPI_CR2_RXDMAEN;
     // VCO @ 1MHz 
     //I2S prescaler register, see pag.595. fi2s = 16M*PLLI2SN/(PLLM*PLLI2SR)=86MHz -> fs=fi2s/[32*(2*I2SDIV+ODD)*8]=47991Hz
-    SPI2->I2SPR=  SPI_I2SPR_MCKOE       //mclk enable
+    I2S2ext->I2SPR=  SPI_I2SPR_MCKOE       //mclk enable
                 | SPI_I2SPR_ODD         //ODD = 1 
                 | (uint32_t)0x00000003; //I2SDIV = 3
     
-    SPI2->I2SCFGR= SPI_I2SCFGR_I2SMOD    //I2S mode selected
+    I2S2ext->I2SCFGR= SPI_I2SCFGR_I2SMOD    //I2S mode selected
                 //| SPI_I2SCFGR_I2SCFG; //Master receive , this bit should be config. when I2S disabled
                  | SPI_I2SCFGR_I2SCFG_1; //Master transmit , this bit should be config. when I2S disabled
                 // Default settings: I2S Philips std, CKPOL low, 16 bit DATLEN, CHLEN 16 bit
-    SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;      //I2S Enabled
+    I2S2ext->I2SCFGR |= SPI_I2SCFGR_I2SE;      //I2S Enabled
 
     /********************* ENABLE DMA_IT AND SET PRIORITY ****************/
     // DMA1_Stream3 => I2S_ext_RX
