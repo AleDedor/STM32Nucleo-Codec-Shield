@@ -29,7 +29,9 @@ typedef Gpio<GPIOC_BASE,3> sdout;   // I2S -> MOSI
 const int bufferSize = 128;
 unsigned int size = 128;
 static Thread *waiting;
-BufferQueue<unsigned short, bufferSize, 3> *bq;
+BufferQueue<unsigned short, bufferSize> *bq;
+
+bool tx_ended = true;
 
 //BufferQueue<unsigned short, bufferSize, 3> bq; for version with also TX
 
@@ -129,7 +131,7 @@ bool startRxDMA(){
     unsigned short *buffer_rx;
 
     unsigned short buffer_tx[size];
-    memset(buffer_tx, 0, size * sizeof(buffer_tx[0]));
+    memset(buffer_tx, 127, size * sizeof(buffer_tx[0]));
 
     if((bq->tryGetWritableBuffer(buffer_rx) == false)){
         return false;
@@ -155,23 +157,25 @@ bool startRxDMA(){
         iprintf("buffer= %p\n",buffer_rx);
         iprintf("DMA1_Stream3_CR= %x\n", DMA1_Stream3->CR);
     });*/
-
-    //start also transmission DMA 
-    //Start DMA, peripheral to memory
-    DMA1_Stream4->CR = 0; //reset configuration register to 0
-    DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //destination address, SPI2 data reg
-    DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(&buffer_tx);  //source address, peripheral, memory data register
-    DMA1_Stream4->NDTR = size;                                        //size of buffer being sent
-    DMA1_Stream4->CR = DMA_SxCR_CHSEL_1 | //dma1 stream 3 channel 3
-                       DMA_SxCR_PL_1    | //High priority DMA stream
-                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
-					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
-				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                       DMA_SxCR_DIR_0   | //Mem to periph
-                       DMA_SxCR_TEIE    | //Interrupt on transfer error
-                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
-			           DMA_SxCR_TCIE    | //Interrupt on completion
-			  	       DMA_SxCR_EN;       //Start the DMA
+    if(tx_ended){
+        tx_ended = false;
+        //start also transmission DMA 
+        //Start DMA, peripheral to memory
+        DMA1_Stream4->CR = 0; //reset configuration register to 0
+        DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //destination address, SPI2 data reg
+        DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(&buffer_tx);  //source address, peripheral, memory data register
+        DMA1_Stream4->NDTR = size;                                        //size of buffer being sent
+        DMA1_Stream4->CR = DMA_SxCR_CHSEL_1 | //dma1 stream 4 channel 2
+                        DMA_SxCR_PL_1    | //High priority DMA stream
+                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
+                        DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
+                        DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
+                        DMA_SxCR_DIR_0   | //Mem to periph
+                        DMA_SxCR_TEIE    | //Interrupt on transfer error
+                        DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+                        DMA_SxCR_TCIE    | //Interrupt on completion
+                        DMA_SxCR_EN;       //Start the DMA
+    }
 
     return true;
 }
@@ -198,7 +202,7 @@ void __attribute__((naked)) DMA1_Stream3_IRQHandler(){
 //actual function implementation
 void __attribute__((used)) I2SdmaHandlerImpl(){ 
     queue.IRQpost([=]{
-        iprintf("0x%x\n",DMA1->LISR);
+        iprintf("LISR: %d\n",DMA1->LISR);
     });
     //clear DMA1 interrupt flags
     DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
@@ -223,12 +227,16 @@ void __attribute__((weak)) DMA1_Stream4_IRQHandler(){
 
 //actual function implementation
 void __attribute__((used)) I2SdmaHandlerImpl2(){
+    queue.IRQpost([=]{
+        iprintf("HISR: %d\n",DMA1->HISR);
+    });
     //clear DMA1 interrupt flags
     DMA1->HIFCR=DMA_HIFCR_CTCIF4  | //clear transfer complete flag 
                 DMA_HIFCR_CTEIF4  | //clear transfer error flag
                 DMA_HIFCR_CDMEIF4 | //clear direct mode error flag
                 DMA_HIFCR_CHTIF4  | 
                 DMA_HIFCR_CFEIF4; 
+    tx_ended = true;
 }
 
 //------------------------Codec initialization and STM32 setup method------------------------------------
@@ -240,7 +248,7 @@ void TLV320AIC3101::setup(){
     Lock<Mutex> l(mutex);
 
     //allocation of memory for 2 buffer queues
-    bq = new BufferQueue<unsigned short, bufferSize, 3>();
+    bq = new BufferQueue<unsigned short, bufferSize>();
 
     {
         FastInterruptDisableLock dLock;
@@ -282,7 +290,7 @@ void TLV320AIC3101::setup(){
         //PLLM = 16 (default), PLLI2SR = 3, PLLI2SN = 258 see datasheet pag.595
         //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the olde project (? dunno why)
         RCC->PLLI2SCFGR=(3<<28) | (258<<6); //values suggested by datasheet
-        //RCC->PLLI2SCFGR=(5<<28) | (492<<6); //values we found
+        //RCC->PLLI2SCFGR=(5<<28) | (246<<6); //solo per provare
         RCC->CR |= RCC_CR_PLLI2SON;
     }
 
@@ -301,6 +309,7 @@ void TLV320AIC3101::setup(){
     I2S2ext->I2SPR=   SPI_I2SPR_MCKOE       //mclk enable
                     | SPI_I2SPR_ODD         //ODD = 1 
                     | (uint32_t)0x00000003; //I2SDIV = 3
+                    //| (uint32_t)0x00000002; //I2SDIV = 2 per provare
     
     // Default settings: I2S Philips std, CKPOL low, 16 bit DATLEN, CHLEN 16 bit
     I2S2ext->I2SCFGR = SPI_I2SCFGR_I2SMOD    //I2S mode selected
