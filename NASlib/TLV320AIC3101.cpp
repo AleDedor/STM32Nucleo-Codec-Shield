@@ -128,6 +128,9 @@ void startTxDMA(){
 bool startRxDMA(){ 
     unsigned short *buffer_rx;
 
+    unsigned short buffer_tx[size];
+    memset(buffer_tx, 0, size * sizeof(buffer_tx[0]));
+
     if((bq->tryGetWritableBuffer(buffer_rx) == false)){
         return false;
     }
@@ -154,10 +157,6 @@ bool startRxDMA(){
     });*/
 
     //start also transmission DMA 
-    unsigned short buffer_tx[size];
-
-    memset(buffer_tx, 0, size * sizeof(buffer_tx[0]));
-
     //Start DMA, peripheral to memory
     DMA1_Stream4->CR = 0; //reset configuration register to 0
     DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //destination address, SPI2 data reg
@@ -225,10 +224,11 @@ void __attribute__((weak)) DMA1_Stream4_IRQHandler(){
 //actual function implementation
 void __attribute__((used)) I2SdmaHandlerImpl2(){
     //clear DMA1 interrupt flags
-    DMA1->LIFCR=DMA_HISR_TCIF4  | //clear transfer complete flag 
-                DMA_HISR_TEIF4  | //clear transfer error flag
-                DMA_HISR_DMEIF4 | //clear direct mode error flag
-                DMA_HISR_HTIF4; 
+    DMA1->HIFCR=DMA_HIFCR_CTCIF4  | //clear transfer complete flag 
+                DMA_HIFCR_CTEIF4  | //clear transfer error flag
+                DMA_HIFCR_CDMEIF4 | //clear direct mode error flag
+                DMA_HIFCR_CHTIF4  | 
+                DMA_HIFCR_CFEIF4; 
 }
 
 //------------------------Codec initialization and STM32 setup method------------------------------------
@@ -304,8 +304,8 @@ void TLV320AIC3101::setup(){
     
     // Default settings: I2S Philips std, CKPOL low, 16 bit DATLEN, CHLEN 16 bit
     I2S2ext->I2SCFGR = SPI_I2SCFGR_I2SMOD    //I2S mode selected
-                  //| SPI_I2SCFGR_I2SCFG; //Master receive , this bit should be config. when I2S disabled
-                    | SPI_I2SCFGR_I2SCFG_1; //Master transmit , this bit should be config. when I2S disabled
+                     | SPI_I2SCFGR_I2SCFG; //Master receive , this bit should be config. when I2S disabled
+                    //| SPI_I2SCFGR_I2SCFG_1; //Master transmit , this bit should be config. when I2S disabled
                 
     I2S2ext->I2SCFGR |= SPI_I2SCFGR_I2SE;      //I2S Enabled
 
