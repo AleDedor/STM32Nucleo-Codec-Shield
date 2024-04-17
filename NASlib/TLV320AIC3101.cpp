@@ -94,37 +94,6 @@ void TLV320AIC3101::ok(){
     bq->bufferEmptied();
 }
 
-//--------------------------Function for starting the I2S DMA TX-----------------------------------------
-/*
-void startTxDMA(){ 
-    unsigned short buffer_tx[size];
-
-    memset(buffer_tx, 0, size * sizeof(buffer_tx[0]));
-
-    //Start DMA, peripheral to memory
-    DMA1_Stream4->CR = 0; //reset configuration register to 0
-    DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //destination address, SPI2 data reg
-    DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(&buffer_tx);  //source address, peripheral, memory data register
-    DMA1_Stream4->NDTR = size;                                        //size of buffer being sent
-    DMA1_Stream4->CR = DMA_SxCR_CHSEL_1 | //dma1 stream 3 channel 3
-                       DMA_SxCR_PL_1    | //High priority DMA stream
-                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
-					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
-				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                       DMA_SxCR_DIR_0   | //Mem to periph
-                       DMA_SxCR_TEIE    | //Interrupt on transfer error
-                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
-			           DMA_SxCR_TCIE    | //Interrupt on completion
-			  	       DMA_SxCR_EN;       //Start the DMA
-    
-    queue.IRQpost([=]{
-        iprintf("Transmission started");
-    });
-    
-    return;
-}
-*/
-
 //--------------------------Function for starting the I2S DMA RX-----------------------------------------
 //nested function call needed to make sure that the lock reaches the scopes at the end of the I2S_startRX()
 bool startRxDMA(){ 
@@ -134,49 +103,31 @@ bool startRxDMA(){
     memset(buffer_tx, 127, size * sizeof(buffer_tx[0]));
 
     if((bq->tryGetWritableBuffer(buffer_rx) == false)){
+        /*queue.IRQpost([=]{
+            iprintf("trygetwritablebuffer");
+        });*/
         return false;
     }
 
-    //Start DMA, peripheral to memory
-    DMA1_Stream3->CR = 0; //reset configuration register to 0
+    //Start DMA1 with I2S2_ext, peripheral to memory
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //source address, peripheral, I2Sext data register 
     DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(buffer_rx);   //destination address, memory, buffer
     DMA1_Stream3->NDTR = size;                               //size of buffer to be filled
-    DMA1_Stream3->CR = DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
-                       DMA_SxCR_PL_1    | //High priority DMA stream
-                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
-					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
-				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                       DMA_SxCR_TEIE    | //Interrupt on transfer error
-                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
-			           DMA_SxCR_TCIE    | //Interrupt on completion
-			  	       DMA_SxCR_EN;       //Start the DMA
-                       //DMA_SxCR_CIRC  | //circular mode
+    DMA1_Stream3->CR |= DMA_SxCR_EN;       //Start the DMA
 
     /*queue.IRQpost([=]{
-        iprintf("buffer= %p\n",buffer_rx);
-        iprintf("DMA1_Stream3_CR= %x\n", DMA1_Stream3->CR);
+        iprintf("Dentro TXRX");
+        //iprintf("DMA1_Stream3_CR= %x\n", DMA1_Stream3->CR);
     });*/
     if(tx_ended){
-        tx_ended = false;
         //start also transmission DMA 
-        //Start DMA, peripheral to memory
-        DMA1_Stream4->CR = 0; //reset configuration register to 0
-        DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //destination address, SPI2 data reg
-        DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(&buffer_tx);  //source address, peripheral, memory data register
+        //Start DMA1 with SPI2, memory to peripheral
+        DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&SPI2->DR); //destination address, SPI2 data reg
+        DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(buffer_tx);  //source address, peripheral, memory data register
         DMA1_Stream4->NDTR = size;                                        //size of buffer being sent
-        DMA1_Stream4->CR = DMA_SxCR_CHSEL_1 | //dma1 stream 4 channel 2
-                        DMA_SxCR_PL_1    | //High priority DMA stream
-                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
-                        DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
-                        DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                        DMA_SxCR_DIR_0   | //Mem to periph
-                        DMA_SxCR_TEIE    | //Interrupt on transfer error
-                        DMA_SxCR_DMEIE   | //Interrupt on direct mode error
-                        DMA_SxCR_TCIE    | //Interrupt on completion
-                        DMA_SxCR_EN;       //Start the DMA
+        DMA1_Stream4->CR |= DMA_SxCR_EN;       //Start the DMA
+        tx_ended = false;
     }
-
     return true;
 }
 
@@ -201,9 +152,9 @@ void __attribute__((naked)) DMA1_Stream3_IRQHandler(){
 
 //actual function implementation
 void __attribute__((used)) I2SdmaHandlerImpl(){ 
-    queue.IRQpost([=]{
+    /*queue.IRQpost([=]{
         iprintf("LISR: %d\n",DMA1->LISR);
-    });
+    });*/
     //clear DMA1 interrupt flags
     DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
                 DMA_LIFCR_CTEIF3  | //clear transfer error flag
@@ -227,9 +178,9 @@ void __attribute__((weak)) DMA1_Stream4_IRQHandler(){
 
 //actual function implementation
 void __attribute__((used)) I2SdmaHandlerImpl2(){
-    queue.IRQpost([=]{
+    /*queue.IRQpost([=]{
         iprintf("HISR: %d\n",DMA1->HISR);
-    });
+    });*/
     //clear DMA1 interrupt flags
     DMA1->HIFCR=DMA_HIFCR_CTCIF4  | //clear transfer complete flag 
                 DMA_HIFCR_CTEIF4  | //clear transfer error flag
@@ -255,9 +206,9 @@ void TLV320AIC3101::setup(){
 
         /**************** I2S2, DMA1 INIT *********************/
         //Enable DMA1 and I2S2 clocks on AHB and APB buses
-        RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN;
+        RCC->AHB1ENR |= RCC_AHB1ENR_DMA1EN; 
         RCC_SYNC();
-        RCC->APB1ENR |= RCC_APB1ENR_SPI2EN;
+        RCC->APB1ENR |= RCC_APB1ENR_SPI2EN; //only SPI2 clock must be enabled, shared with 12S2ext
         RCC_SYNC();
 
         //debug for output of I2S MCLK
@@ -278,7 +229,7 @@ void TLV320AIC3101::setup(){
         sclk::alternateFunction(5);
 
         sdin::mode(Mode::ALTERNATE);
-        sdin::alternateFunction(6);     // I2S_ext associated with AF_6 //recheck AF...????
+        sdin::alternateFunction(6);     // I2S_ext associated with AF_6
 
         sdout::mode(Mode::ALTERNATE);
         sdout::alternateFunction(5);    // SPI2 associated with AF_5
@@ -290,33 +241,63 @@ void TLV320AIC3101::setup(){
         //PLLM = 16 (default), PLLI2SR = 3, PLLI2SN = 258 see datasheet pag.595
         //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the olde project (? dunno why)
         RCC->PLLI2SCFGR=(3<<28) | (258<<6); //values suggested by datasheet
-        //RCC->PLLI2SCFGR=(5<<28) | (246<<6); //solo per provare
         RCC->CR |= RCC_CR_PLLI2SON;
     }
 
     //wait for PLL to lock
     while((RCC->CR & RCC_CR_PLLI2SRDY)==0);
 
-    /***************** I2S SETTINGS *************************************/
+    /*********************************************** I2S SETTINGS **********************************************************************/
     //I2S + I2Sext must be used in full duplex mode (in half duplex, only I2S can be used, not the _ext)
     //Using Full duplex mode, I2Sext is the MISO (input)
+    /********** CONFIGURE BOTH SPI2 + I2S2_EXT REGISTERS ***********/
+
+    /********************************************** SPI2 CONFIGURATION ****************************************************************/
     //enable DMA on I2S, TX mode, no interrupts enabled by SPI2 peripheral, only DMA!
-    I2S2ext->CR2 |= SPI_CR2_TXDMAEN;
-    //enable DMA on I2S, RX mode, do i have to set both rx/txdmaen ?
-    I2S2ext->CR2 |= SPI_CR2_RXDMAEN;
     // VCO @ 1MHz 
     //I2S prescaler register, see pag.595. fi2s = 16M*PLLI2SN/(PLLM*PLLI2SR)=86MHz -> fs=fi2s/[32*(2*I2SDIV+ODD)*8]=47991Hz
-    I2S2ext->I2SPR=   SPI_I2SPR_MCKOE       //mclk enable
+    SPI2->I2SPR =   SPI_I2SPR_MCKOE       //mclk enable
                     | SPI_I2SPR_ODD         //ODD = 1 
                     | (uint32_t)0x00000003; //I2SDIV = 3
-                    //| (uint32_t)0x00000002; //I2SDIV = 2 per provare
-    
     // Default settings: I2S Philips std, CKPOL low, 16 bit DATLEN, CHLEN 16 bit
-    I2S2ext->I2SCFGR = SPI_I2SCFGR_I2SMOD    //I2S mode selected
-                     | SPI_I2SCFGR_I2SCFG; //Master receive , this bit should be config. when I2S disabled
-                    //| SPI_I2SCFGR_I2SCFG_1; //Master transmit , this bit should be config. when I2S disabled
-                
-    I2S2ext->I2SCFGR |= SPI_I2SCFGR_I2SE;      //I2S Enabled
+    SPI2->I2SCFGR = SPI_I2SCFGR_I2SMOD      //I2S mode selected
+                    | SPI_I2SCFGR_I2SCFG_1; //Master transmit , this bit should be config. when I2S disabled
+                    //| SPI_I2SCFGR_I2SCFG; //Master receive , this bit should be config. when I2S disabled
+     SPI2->CR2 |= SPI_CR2_TXDMAEN;                   
+    SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;      //I2S Enabled
+
+
+    /********************************************** I2S2_EXT CONFIGURATION ****************************************************************/
+    //enable DMA on I2S2ext, RX mode
+    // Default settings: I2S Philips std, CKPOL low, 16 bit DATLEN, CHLEN 16 bit
+    I2S2ext->I2SCFGR = SPI_I2SCFGR_I2SMOD       //I2S mode selected    
+                        | SPI_I2SCFGR_I2SCFG_0; //Slave Receive
+                        //; //Slave transmit         
+    I2S2ext->CR2 |= SPI_CR2_RXDMAEN;                       
+    I2S2ext->I2SCFGR |= SPI_I2SCFGR_I2SE;       //I2S Enabled
+
+    /********************************************** DMA1_Stream3 (RX, I2S2_EXT) CONFIGURATION ****************************************************************/
+    DMA1_Stream3->CR = 0;                 //reset configuration register to 0
+    DMA1_Stream3->CR = DMA_SxCR_CHSEL_3 | //dma1 stream 3 channel 3
+                       DMA_SxCR_PL_1    | //High priority DMA stream
+                       DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
+					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
+				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
+                       DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+			           DMA_SxCR_TCIE;     //Interrupt on completion
+
+    /********************************************** DMA1_Stream4 (TX, SPI2) CONFIGURATION ****************************************************************/
+    DMA1_Stream4->CR = 0;                 //reset configuration register to 0
+    DMA1_Stream4->CR =  DMA_SxCR_CHSEL_0 | //dma1 stream 4 channel 0
+                        DMA_SxCR_PL_1    | //High priority DMA stream
+                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
+                        DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
+                        DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
+                        DMA_SxCR_DIR_0   | //Mem to periph
+                        DMA_SxCR_TEIE    | //Interrupt on transfer error
+                        DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+                        DMA_SxCR_TCIE;     //Interrupt on completion
 
     /********************* ENABLE DMA_IT AND SET PRIORITY ****************/
     // DMA1_Stream3 => I2S_ext_RX

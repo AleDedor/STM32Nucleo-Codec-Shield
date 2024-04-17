@@ -1,5 +1,6 @@
 #include "miosix.h"
-
+//include guards only for .h files, what is included here must not be included anywhere else this file
+//is added. Not the same thing for implementation files .cpp, wher we must include always everything
 #ifndef TLV320AIC3101_H
 #define TLV320AIC3101_H
 
@@ -28,12 +29,6 @@ public:
 	 * Start I2S communication (RX) with DMA
 	 */
     static bool I2S_startRx();
-
-
-    /**
-	 * Start I2S communication (TX) with DMA
-	 */
-    static bool I2S_startTx();
 
     static const unsigned short * getReadableBuff();
 
