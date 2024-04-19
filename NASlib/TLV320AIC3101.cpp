@@ -100,11 +100,9 @@ bool startRxDMA(){
 
     unsigned short *buffer_rx;
     if((bq->tryGetWritableBuffer(buffer_rx) == false)){
-        /*queue.IRQpost([=]{
-            iprintf("trygetwritablebuffer");
-        });*/
         return false;
     }
+
     unsigned short buffer_tx[size];
     memset(buffer_tx, 0, size * sizeof(buffer_tx[0]));
 
@@ -136,7 +134,7 @@ bool startRxDMA(){
         I2S2ext->I2SCFGR |= SPI_I2SCFGR_I2SE;
         SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;
     }
-
+    /*
     //for debug purpose, print relevant registers value
     queue.IRQpost([=]{
         iprintf("----------I2S registers-----------\n");
@@ -156,7 +154,7 @@ bool startRxDMA(){
         iprintf("Stream3 M0AR =%x\n",DMA1_Stream3->M0AR);
         iprintf("Stream3 CR=%x\n",DMA1_Stream3->CR);
         
-    });
+    });*/
 
     return true;
 }
@@ -207,11 +205,6 @@ void __attribute__((weak)) DMA1_Stream4_IRQHandler(){
 
 //actual function implementation
 void __attribute__((used)) I2SdmaHandlerImpl2(){
-    /*
-    queue.IRQpost([=]{
-            iprintf("HIFCR =%x\n", DMA1->HIFCR);
-        });*/
-    //iprintf("HIFCR =%x\n", DMA1->HIFCR);
     //clear DMA1 interrupt flags
     DMA1->HIFCR=DMA_HIFCR_CTCIF4  | //clear transfer complete flag 
                 DMA_HIFCR_CTEIF4  | //clear transfer error flag
@@ -240,12 +233,6 @@ void TLV320AIC3101::setup(){
         RCC_SYNC();
         RCC->APB1ENR |= RCC_APB1ENR_SPI2EN; //only SPI2 clock must be enabled, shared with 12S2ext
         RCC_SYNC();
-        /*
-        RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN; 
-        RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN; 
-        RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN; 
-        RCC->AHB1ENR |= RCC_AHB1ENR_GPIOHEN; 
-        RCC_SYNC();*/
 
         /*
         //debug for output of I2S MCLK
@@ -345,8 +332,8 @@ void TLV320AIC3101::setup(){
                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
 					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
 				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                       //DMA_SxCR_TEIE    | //Interrupt on transfer error
-                       //DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+                       DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
 			           DMA_SxCR_TCIE;     //Interrupt on completion
 
     /********************************************** DMA1_Stream4 (TX, SPI2) CONFIGURATION ****************************************************************/
@@ -357,8 +344,8 @@ void TLV320AIC3101::setup(){
                        DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
                        DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
                        DMA_SxCR_DIR_0   | //Mem to periph
-                       //DMA_SxCR_TEIE    | //Interrupt on transfer error
-                       //DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+                       DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
                        DMA_SxCR_TCIE;     //Interrupt on completion
 
     /********************* ENABLE DMA_IT AND SET PRIORITY ****************/
