@@ -19,7 +19,7 @@
 /* USER CODE BEGIN PD */
 #define HIGH 1
 #define LOW 0
-#define NUM_LEDS 6
+#define NUM_LEDS 5
 #define TIMEOUT 500
 #define BUFF_SIZE 50
 #define RESET_TIME 50 
@@ -43,7 +43,7 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 uint8_t TIM3_ISR_FLAG = 0;
-uint16_t LED_PIN[NUM_LEDS]={RLED1_Pin, RLED2_Pin, YLED1_Pin, YLED2_Pin, GLED1_Pin, GLED2_Pin};
+uint16_t LED_PIN[NUM_LEDS]={RLED1_Pin, RLED2_Pin, YLED1_Pin, YLED2_Pin, GLED1_Pin};
 Codec codec;
 // buffer of sound data where odd indexes are left channel, even are right one
 uint16_t rx_data[BUFF_SIZE];
@@ -69,7 +69,7 @@ static void Led_Clear();
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 static void Led_Clear(){
-	HAL_GPIO_WritePin(GPIOA, RLED1_Pin|RLED2_Pin|YLED1_Pin|YLED2_Pin|GLED1_Pin|GLED2_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, RLED1_Pin|RLED2_Pin|YLED1_Pin|YLED2_Pin|GLED1_Pin, GPIO_PIN_RESET);
 }
 
 /* 2 DMA streams are used, 1 RX ,1 TX */
@@ -93,27 +93,27 @@ void process_half(){
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[2], HIGH);
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[3], HIGH);
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
-			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+			//HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
 		}else if(volume<55296 && volume>13824){
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[1], HIGH);
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[2], HIGH);
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[3], HIGH);
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
-			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+			//HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
 		}else if(volume<13824 && volume>4608){
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[2], HIGH);
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[3], HIGH);
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
-			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+			//HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
 		}else if(volume<4608 && volume>1536){
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[3], HIGH);
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
-			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+			//HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
 		}else if(volume<1536 && volume>512){
 			HAL_GPIO_WritePin(GPIOA, LED_PIN[4], HIGH);
-			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+			//HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
 		}else if(volume<512 && volume>0){
-			HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
+			//HAL_GPIO_WritePin(GPIOA, LED_PIN[5], HIGH);
 		}
 	}
 }
@@ -295,8 +295,8 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 8;
-  RCC_OscInitStruct.PLL.PLLN = 84;
+  RCC_OscInitStruct.PLL.PLLM = 16;
+  RCC_OscInitStruct.PLL.PLLN = 168;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 7;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -501,7 +501,7 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, LD2_Pin|RLED1_Pin|RLED2_Pin|YLED1_Pin
-                          |YLED2_Pin|GLED1_Pin|GLED2_Pin, GPIO_PIN_RESET);
+                          |YLED2_Pin|GLED1_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
@@ -510,9 +510,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD2_Pin RLED1_Pin RLED2_Pin YLED1_Pin
-                           YLED2_Pin GLED1_Pin GLED2_Pin */
+                           YLED2_Pin GLED1_Pin */
   GPIO_InitStruct.Pin = LD2_Pin|RLED1_Pin|RLED2_Pin|YLED1_Pin
-                          |YLED2_Pin|GLED1_Pin|GLED2_Pin;
+                          |YLED2_Pin|GLED1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
