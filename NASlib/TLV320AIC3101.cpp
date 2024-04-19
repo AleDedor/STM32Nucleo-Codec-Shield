@@ -26,8 +26,8 @@ typedef Gpio<GPIOB_BASE,12> lrclk;  // word select
 typedef Gpio<GPIOC_BASE,2> sdin;    // I2S_ext -> MISO
 typedef Gpio<GPIOC_BASE,3> sdout;   // I2S -> MOSI
 
-const int bufferSize = 255;
-unsigned int size = 255;
+const int bufferSize = 128;
+unsigned int size = 128;
 static Thread *waiting;
 BufferQueue<unsigned short, bufferSize> *bq;
 
@@ -137,13 +137,25 @@ bool startRxDMA(){
         SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;
     }
 
+    //for debug purpose, print relevant registers value
     queue.IRQpost([=]{
+        iprintf("----------I2S registers-----------\n");
         iprintf("I2S2ext CR2 =%x\n", I2S2ext->CR2);
         iprintf("SPI2 CR2 =%x\n", SPI2->CR2);
         iprintf("I2S2ext SR =%x\n", I2S2ext->SR);
         iprintf("SPI2 SR =%x\n", SPI2->SR);
         iprintf("I2S2ext CFGR =%x\n", I2S2ext->I2SCFGR);
         iprintf("SPI2 CFGR =%x\n", SPI2->I2SCFGR);
+        iprintf("I2S2ext I2SPR =%x\n", I2S2ext->I2SPR);
+        iprintf("SPI2 I2SPR =%x\n", SPI2->I2SPR);
+        iprintf("----------DMA registers-----------\n");
+        iprintf("Stream4 PAR =%x\n",DMA1_Stream4->PAR );
+        iprintf("Stream4 M0AR =%x\n",DMA1_Stream4->M0AR);
+        iprintf("Stream4 CR=%x\n",DMA1_Stream4->CR);
+        iprintf("Stream3 PAR =%x\n",DMA1_Stream3->PAR);
+        iprintf("Stream3 M0AR =%x\n",DMA1_Stream3->M0AR);
+        iprintf("Stream3 CR=%x\n",DMA1_Stream3->CR);
+        
     });
 
     return true;
@@ -172,9 +184,6 @@ void __attribute__((naked)) DMA1_Stream3_IRQHandler(){
 
 //actual function implementation
 void __attribute__((used)) I2SdmaHandlerImpl(){ 
-    queue.IRQpost([=]{
-        iprintf("LISR: %d\n",DMA1->LISR);
-    });
     //clear DMA1 interrupt flags
     DMA1->LIFCR=DMA_LIFCR_CTCIF3  | //clear transfer complete flag 
                 DMA_LIFCR_CTEIF3  | //clear transfer error flag
@@ -189,7 +198,7 @@ void __attribute__((used)) I2SdmaHandlerImpl(){
         Scheduler::IRQfindNextThread();
 }
 
-/********************* DMA1_STREAM4 => I2S2_ext (TX, MOSI) ***********************/
+/********************* DMA1_STREAM4 => SPI2 (TX, MOSI) *************************/
 void __attribute__((weak)) DMA1_Stream4_IRQHandler(){
     saveContext();
 	asm volatile("bl _Z18I2SdmaHandlerImpl2v"); 
@@ -198,9 +207,11 @@ void __attribute__((weak)) DMA1_Stream4_IRQHandler(){
 
 //actual function implementation
 void __attribute__((used)) I2SdmaHandlerImpl2(){
-    /*queue.IRQpost([=]{
-        iprintf("HISR: %d\n",DMA1->HISR);
-    });*/
+    /*
+    queue.IRQpost([=]{
+            iprintf("HIFCR =%x\n", DMA1->HIFCR);
+        });*/
+    //iprintf("HIFCR =%x\n", DMA1->HIFCR);
     //clear DMA1 interrupt flags
     DMA1->HIFCR=DMA_HIFCR_CTCIF4  | //clear transfer complete flag 
                 DMA_HIFCR_CTEIF4  | //clear transfer error flag
@@ -212,11 +223,10 @@ void __attribute__((used)) I2SdmaHandlerImpl2(){
 
 //------------------------Codec initialization and STM32 setup method------------------------------------
 void TLV320AIC3101::setup(){
+    Lock<Mutex> l(mutex);
 
     thread t([&]{ queue.run(); });
     t.detach();
-
-    Lock<Mutex> l(mutex);
 
     //allocation of memory for 2 buffer queues
     bq = new BufferQueue<unsigned short, bufferSize>();
@@ -230,11 +240,12 @@ void TLV320AIC3101::setup(){
         RCC_SYNC();
         RCC->APB1ENR |= RCC_APB1ENR_SPI2EN; //only SPI2 clock must be enabled, shared with 12S2ext
         RCC_SYNC();
+        /*
         RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN; 
         RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN; 
         RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN; 
         RCC->AHB1ENR |= RCC_AHB1ENR_GPIOHEN; 
-        RCC_SYNC();
+        RCC_SYNC();*/
 
         /*
         //debug for output of I2S MCLK
@@ -334,20 +345,20 @@ void TLV320AIC3101::setup(){
                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
 					   DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
 				       DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
-                       DMA_SxCR_TEIE    | //Interrupt on transfer error
-                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+                       //DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       //DMA_SxCR_DMEIE   | //Interrupt on direct mode error
 			           DMA_SxCR_TCIE;     //Interrupt on completion
 
     /********************************************** DMA1_Stream4 (TX, SPI2) CONFIGURATION ****************************************************************/
     DMA1_Stream4->CR = 0;                 //reset configuration register to 0
-    DMA1_Stream4->CR = DMA_SxCR_CHSEL_0 | //dma1 stream 4 channel 0
+    DMA1_Stream4->CR = //DMA_SxCR_CHSEL_0 | //dma1 stream 4 channel 0
                        DMA_SxCR_PL_1    | //High priority DMA stream
                        DMA_SxCR_MSIZE_0 | //Read  16bit at a time from RAM
                        DMA_SxCR_PSIZE_0 | //Write 16bit at a time to SPI
                        DMA_SxCR_MINC    | //Increment RAM pointer after each transfer
                        DMA_SxCR_DIR_0   | //Mem to periph
-                       DMA_SxCR_TEIE    | //Interrupt on transfer error
-                       DMA_SxCR_DMEIE   | //Interrupt on direct mode error
+                       //DMA_SxCR_TEIE    | //Interrupt on transfer error
+                       //DMA_SxCR_DMEIE   | //Interrupt on direct mode error
                        DMA_SxCR_TCIE;     //Interrupt on completion
 
     /********************* ENABLE DMA_IT AND SET PRIORITY ****************/
