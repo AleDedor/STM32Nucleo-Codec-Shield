@@ -31,7 +31,6 @@ unsigned int size = 128;
 static Thread *waiting;
 BufferQueue<unsigned short, bufferSize> *bq;
 
-bool tx_ended = true;
 
 //BufferQueue<unsigned short, bufferSize, 3> bq; for version with also TX
 
@@ -102,10 +101,7 @@ bool startRxDMA(){
     if((bq->tryGetWritableBuffer(buffer_rx) == false)){
         return false;
     }
-
-    unsigned short buffer_tx[size];
-    memset(buffer_tx, 0, size * sizeof(buffer_tx[0]));
-
+    
     //Start DMA1 with I2S2_ext, peripheral to memory
     DMA1_Stream3->PAR = reinterpret_cast<unsigned int>(&I2S2ext->DR); //source address, peripheral, I2Sext data register 
     DMA1_Stream3->M0AR = reinterpret_cast<unsigned int>(buffer_rx);   //destination address, memory, buffer
@@ -116,23 +112,8 @@ bool startRxDMA(){
     I2S2ext->CR2 |= SPI_CR2_RXDMAEN;
 
 
-    if(tx_ended){
-        //start also transmission DMA 
-        //Start DMA1 with SPI2, memory to peripheral
-        DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&SPI2->DR); //destination address, SPI2 data reg
-        DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(buffer_tx);  //source address, peripheral, memory data register
-        DMA1_Stream4->NDTR = size; //size of buffer being sent
-        DMA1_Stream4->CR |= DMA_SxCR_EN; //Start the DMA
-
-        //Now enable the I2S
-        SPI2->CR2 |= SPI_CR2_TXDMAEN;
-        
-        tx_ended = false;
-    } 
-
     if((I2S2ext->I2SCFGR & SPI_I2SCFGR_I2SE) != SPI_I2SCFGR_I2SE ){
         I2S2ext->I2SCFGR |= SPI_I2SCFGR_I2SE;
-        SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;
     }
     /*
     //for debug purpose, print relevant registers value
@@ -161,15 +142,40 @@ bool startRxDMA(){
 
 bool TLV320AIC3101::I2S_startRx(){
     bool startedDMA = false;
-
     {
         FastInterruptDisableLock dLock;
         startedDMA = startRxDMA();
     }
-
     return startedDMA;
 }
 
+
+//--------------------------Function for starting the I2S DMA TX-----------------------------------------
+void startTxDMA(const unsigned short *buffer_tx){ 
+
+    
+}
+
+void TLV320AIC3101::I2S_startTx(const unsigned short *buffer_tx){
+    {
+        FastInterruptDisableLock dLock;
+
+        //start also transmission DMA 
+        //Start DMA1 with SPI2, memory to peripheral
+        DMA1_Stream4->PAR = reinterpret_cast<unsigned int>(&SPI2->DR); //destination address, SPI2 data reg
+        DMA1_Stream4->M0AR = reinterpret_cast<unsigned int>(buffer_tx);  //source address, peripheral, memory data register
+        DMA1_Stream4->NDTR = size; //size of buffer being sent
+        DMA1_Stream4->CR |= DMA_SxCR_EN; //Start the DMA
+
+        //Now enable the I2S
+        SPI2->CR2 |= SPI_CR2_TXDMAEN;
+
+        if((SPI2->I2SCFGR & SPI_I2SCFGR_I2SE) != SPI_I2SCFGR_I2SE ){
+            SPI2->I2SCFGR |= SPI_I2SCFGR_I2SE;
+        }
+    }
+    return; 
+}
 
 //-------------------------------IRQ handler functions------------------------------------------------
 
@@ -190,7 +196,7 @@ void __attribute__((used)) I2SdmaHandlerImpl(){
                 DMA_LIFCR_CFEIF3;   //clear fifo error interrupt flag
     //mark the buffer as readable
     bq->bufferFilled(size);
-    startRxDMA();
+    //startRxDMA();
     waiting->IRQwakeup();
     if(waiting->IRQgetPriority()>Thread::IRQgetCurrentThread()->IRQgetPriority())
         Scheduler::IRQfindNextThread();
@@ -211,7 +217,7 @@ void __attribute__((used)) I2SdmaHandlerImpl2(){
                 DMA_HIFCR_CDMEIF4 | //clear direct mode error flag
                 DMA_HIFCR_CHTIF4  | 
                 DMA_HIFCR_CFEIF4; 
-    tx_ended = true;
+    bq->bufferEmptied();
 }
 
 //------------------------Codec initialization and STM32 setup method------------------------------------
@@ -264,8 +270,9 @@ void TLV320AIC3101::setup(){
 
         //enabling PLL for I2S and starting clock
         //PLLM = 16 (default), PLLI2SR = 3, PLLI2SN = 258 see datasheet pag.595
-        //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the olde project (? dunno why)
+        //Actually by trying on the cubeIDE, these values distort the sound more than the one set on the older project (? dunno why)
         RCC->PLLI2SCFGR = (3<<28) | (258<<6); //values suggested by datasheet
+        //RCC->PLLI2SCFGR = (10<<28) | (123<<6); //values found by us (works, tested)
         RCC->CR |= RCC_CR_PLLI2SON;
     }
 

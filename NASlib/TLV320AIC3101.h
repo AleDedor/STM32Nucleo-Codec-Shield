@@ -30,6 +30,8 @@ public:
 	 */
     static bool I2S_startRx();
 
+    static void I2S_startTx(const unsigned short *buffer_tx);
+
     static const unsigned short * getReadableBuff();
 
     /**
