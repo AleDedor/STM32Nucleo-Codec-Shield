@@ -1,3 +1,6 @@
 [submodule "miosix-kernel"]
 	path = miosix-kernel
 	url = git@github.com:AleDedor/miosix-kernel.git
+[submodule "Report"]
+	path = Report
+	url = https://github.com/vzaccaria/aos-project-template.git
