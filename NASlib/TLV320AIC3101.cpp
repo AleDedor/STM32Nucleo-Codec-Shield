@@ -151,10 +151,6 @@ bool TLV320AIC3101::I2S_startRx(){
 
 
 //--------------------------Function for starting the I2S DMA TX-----------------------------------------
-void startTxDMA(const unsigned short *buffer_tx){ 
-
-    
-}
 
 void TLV320AIC3101::I2S_startTx(const unsigned short *buffer_tx){
     {
