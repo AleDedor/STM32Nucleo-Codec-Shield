@@ -217,6 +217,8 @@ void __attribute__((used)) I2SdmaHandlerImpl2(){
 void TLV320AIC3101::setup(){
     Lock<Mutex> l(mutex);
 
+    waiting = Thread::getCurrentThread();
+
     thread t([&]{ queue.run(); });
     t.detach();
 
@@ -274,8 +276,6 @@ void TLV320AIC3101::setup(){
 
     /******************* CODEC SETTINGS ************************/
     //Send TLV320AIC3101 configuration registers with I2C
-    delayMs(10);
-
     TLV320AIC3101::I2C_Send(0x01,0b10000000);
     TLV320AIC3101::I2C_Send(0x02,0b00000000);
     TLV320AIC3101::I2C_Send(0x03,0b00010001);
@@ -357,5 +357,4 @@ void TLV320AIC3101::setup(){
     NVIC_SetPriority(DMA1_Stream4_IRQn,2);   
     NVIC_EnableIRQ(DMA1_Stream4_IRQn);     
 
-    waiting = Thread::getCurrentThread();
 }
