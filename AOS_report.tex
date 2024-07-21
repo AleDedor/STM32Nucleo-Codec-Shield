@@ -1,0 +1,271 @@
+
+\documentclass[10pt,a4]{article}
+\setlength{\parindent}{0pt}
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{hyperref}
+\usepackage{geometry}
+\geometry{top=3cm,left=2cm,right=2cm,bottom=3cm}
+\usepackage[scaled]{helvet}
+\usepackage[T1]{fontenc}
+\usepackage{placeins}
+\renewcommand\familydefault{\sfdefault}
+
+\usepackage{minted}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset { % for code
+    language=C++,
+    breaklines=true,
+     basicstyle=\color{teal}
+}
+
+\author{Daidone Luca and Dedor Alessio}
+\date{\today}
+\title{\textbf{STM32-Nucleo Shield for real-time audio acquisition and processing}}
+
+
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+
+\pagebreak
+
+\section{Project data}
+
+\begin{itemize}
+\item 
+  Project supervisor: prof. Terraneo Federico
+
+\item 
+Describe in this table the group that is delivering this project:
+
+\begin{center}
+\begin{tabular}{lll}
+Last and first name & Person code & Email address\\
+\hline
+  Daidone Luca & 10723194 & luca.daidone@mail.polimi.it \\
+  Dedor Alessio Walter & 10654363 & alessiowalter.dedor@mail.polimi.it                    
+\end{tabular}
+\end{center}
+
+\item
+Describe here how development tasks have been subdivided among members
+of the group:
+
+The members of the group worked together on all the tasks.
+
+\item Links to the project source code:     \href{https://github.com/AleDedor/STM32Nucleo-Codec-Shield}{\textbf{\underline{STM32Nucleo Codec Shield}}}
+
+\end{itemize}
+
+\section{Project description}
+The project consists in designing a shield based on the \textbf{TLV320AIC3101} codec for \textbf{STM32F401RE Nucleo} boards and developing a driver to interface the shield with the Miosix RTOS.\\
+
+The two main goals are:
+\begin{enumerate}
+    \item \textbf{Design} and \textbf{assemble} a custom “shield” to add audio processing capabilities to the STM32 Nucleo boards.
+    \item Implement a \textbf{driver} to interface the shield with the \textbf{embedded RTOS “Miosix”} and exploit the advantages of multi-threaded programming.
+\end{enumerate}
+
+\subsection{TLV320AIC3101 Codec}
+The core of the project is the codec, a chip from Texas Instruments capable of sampling audio signals with its ADC functionality, processing the digitized data, and transmitting it to the microcontroller via the I2S protocol. Additionally, it can receive a digital audio stream and convert it back to an analog signal using its DAC capability. Apart from the I2S interface, the codec comes equipped with an I2C interface, used to modify the internal settings (e.g. which input channel to use, ADC gain factor, sampling frequency, internal PLL settings etc.)
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.4\textwidth]{codec.png}
+        \caption{Codec and main functional blocks}
+    \end{figure}
+
+To get the device working, implementing an appropriate library was necessary. The library's roles are:
+
+\begin{itemize}
+\item Setting up codec registers via the I2C protocol
+\item Managing I2S transmission and reception
+\end{itemize}
+
+\subsection{VU-meter}
+The received audio can be displayed on a VU-meter consisting of 6 LEDs. To accurately represent the audio data value, which can range from 0 to 65535, it must first be converted to a logarithmic scale. Therefore, creating a "VU-meter" class was necessary. This class provides the following functionalities:
+
+\begin{itemize}
+\item Instantiating a VU-meter object with the corresponding GPIOs as parameters.
+\item Displaying the sound level by turning on the appropriate number of LEDs.
+\end{itemize}
+
+\subsection{I2S Peripheral}
+Lastly, the STM32 micro controller should be able to communicate with the codec via I2S (Inter-IC Sound) protocol. 
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.8\textwidth]{i2s_2.png}
+        \caption{Codec and main functional blocks}
+    \end{figure}
+
+I2S is a Master-Slave type protocol in which the Master generates the Master Clock (MCLK) that is shared by both the Master and Slave devices to enable synchronous communication. The other important signals in the I2S protocol include:
+
+\begin{itemize}
+\item \textbf{Word Select (WS) or Left-Right Clock (LRCLK)}: Indicates whether the current word is for the left or right channel.
+\item \textbf{Bit Clock (BCLK)}: Synchronizes the data transmission by indicating when a bit should be read or written.
+\item \textbf{Serial Data I/O (SDIO)}: Carries the actual audio data being transferred.
+\end{itemize}
+
+Since the aim of the project is to process the sound signal in real-time, it is therefore crucial to avoid keeping busy the micro controller. For this reason we chose to employ the I2S in \textbf{full-duplex mode}, also enabling both \textbf{DMA} and its \textbf{interrupts}.
+
+\pagebreak
+
+\section{Design and implementation}
+
+\subsection{Hardware}
+A quick note on the hardware implementation: the shield board for the Nucleo STM32F401RE is equipped with analog front-end, the codec, an LDO to supply the 1.8V, the VU-meter LEDs and input/output 3.5mm jack connectors.
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.45\textwidth]{codec_schem.png}
+        \quad
+        \includegraphics[width=0.3\textwidth]{top_layer.png}
+        \caption{Part of the schematic and layout design}
+    \end{figure}
+
+Both the schematic and the layout were produced using Altium Designer, whereas the PCB was produced by JLCPCB.\\
+
+Links: \href{https://github.com/AleDedor/STM32Nucleo-Codec-Shield/blob/main/Schematic/Nucleo_Codec_Shield.pdf}{\underline{Schematic}}.
+
+\subsection{Software}
+Libraries to easily manage all the HW present on the board must be provided. Finally, a simple loopback and a VU-meter showcase should be realized.
+
+\subsubsection{VU-meter}
+The \lstinline{class Vumeter} is defined to manage the relative hardware, it's implementation can be found inside the \href{https://github.com/AleDedor/STM32Nucleo-Codec-Shield/blob/main/NASlib/vumeter.h}{\underline{vumeter.h}} file. Some key aspects include:
+\begin{itemize}
+    \item The class' \textbf{constructor} \lstinline{Vumeter::Vumeter(GpioPin Rled1, GpioPin Rled2, GpioPin Yled1, GpioPin Yled2, GpioPin Gled1)} takes the 6 Gpios directly connected to the leds as parameters and set them in output mode.
+    \item The class' \textbf{public methods} \lstinline{void Vumeter::clear()}, \lstinline{void Vumeter::setHigh()}, \lstinline{void Vumeter::showVal(unsigned int sound_val)} are respectively used to turn off/on all the leds and display the sound level in a log scale.
+\end{itemize}
+
+\subsubsection{TLV320AIC3101}
+The \lstinline{class TLV320AIC3101} contains all the methods used to manage the codec, its definition can be found inside \href{https://github.com/AleDedor/STM32Nucleo-Codec-Shield/blob/main/NASlib/TLV320AIC3101.h}{\underline{TLV320AIC3101.h}} while the implementation is in the respective .cpp file. Some key aspects include:
+
+\begin{itemize}
+    \item The class can be instanced only once thanks to the \textbf{singleton} pattern.
+    \item The I2C communication with the codec is achieved thanks to the \lstinline{unsigned char I2C_Receive(unsigned char regAddress)} and \lstinline{bool I2C_Send(unsigned char regAddress, char data)} class' methods.
+    \item The I2S communication with the codec is achieved thanks to the \lstinline{static bool I2S_startRx()} and \lstinline{static void I2S_startTx(const unsigned short *buffer_tx)} class' methods.
+    \item The class contains the interrupt service routines called after DMA transfer completion.
+\end{itemize}
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.4\textwidth]{driver_overview.png}
+        \caption{TLV320AIC3101 class overview}
+    \end{figure}
+
+The main idea behind the driver is to utilize a BufferQueue structure to both implement double buffering and synchronize between threads and interrupt routines. The driver is composed of different methods, let's see the main functionalities.
+
+\subsubsection{Codec I2C communication}
+To implement the I2C communication we decided to rely on the Miosix's native driver \lstinline{SoftwareI2C<sda,scl>}. The codec datasheet specifies how a correct communications should be carried out:
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.8\textwidth]{i2c_read.png}
+        \caption{Reading operation with I2C protocol}
+    \end{figure}
+
+In order to receive data from the codec, the STM32 should send a start, send codec and register addresses, send another start and then wait for the data. The I2C receive functionality is used only for debug purposes in order to check that the codec's registers are set up correctly.
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.8\textwidth]{I2c_write.png}
+        \caption{Writing operation with I2C protocol}
+    \end{figure}
+
+In order to modify the content of a register of the codec, the write operation must be carried out. The STM32 should send a start, send codec and register addresses and finally the data.\\
+
+The code can be found at the following link to the repo:
+\href{https://github.com/AleDedor/STM32Nucleo-Codec-Shield/blob/main/NASlib/TLV320AIC3101.cpp}{\underline{TLV320AIC3101.cpp}}
+
+\subsubsection{Codec I2S communication}
+To setup the I2S peripheral to work in \textbf{full-duplex mode} with \textbf{DMA and interrupts} enabled three different methods are employed:
+
+\begin{enumerate}
+    \item \lstinline{void setup()}, is meant to be called only once, it enables peripherals clock (DMA1/SPI2), sets up I2S pins (with correct AF number), configure I2S PLL, configure I2S2 and I2S2 extended working mode (Master/Slave), sets up relative DMAx streams and enables the relative DMA1 (Stream3/Stream4) interrupts.
+    \item \lstinline{static bool I2S_startRx()}, it searches a free and writable buffer among the ones of the BufferQueue, sets DMA1 (Stream 3) to transfer from peripheral (I2S) to memory and then starts it. Enables I2S2 extended peripheral.
+
+    \item \lstinline{static void I2S_startTx(const unsigned short *buffer_tx)}, takes the buffer filled with audio data as a parameter, sets DMA1 (Stream 4) to transfer from memory to peripheral and then starts it. Enables SPI2 (I2S2) peripheral.
+\end{enumerate}
+
+The relative code can be found at the following link to the repo:
+\href{https://github.com/AleDedor/STM32Nucleo-Codec-Shield/blob/main/NASlib/TLV320AIC3101.cpp}{\underline{TLV320AIC3101.cpp}}
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[width=0.8\textwidth]{i2s.png}
+        \caption{I2S peripherals for full-duplex mode}
+    \end{figure}
+
+\subsubsection{DMA and ISR handling}
+The DMA (Direct Memory Access) enables data transactions between memory and peripheral without the need for the CPU to continuously intervene. Enabling interrupts also allows us to provide a fast response when a transaction is completed. Once the interrupts and the DMA are enabled, we just need to define what is the critical work that needs to be done in the respective ISRs.
+
+\begin{itemize}
+    \item \lstinline{void __attribute__((naked)) DMA1_Stream3_IRQHandler()}, is the ISR called when a reception event is completed. It clears all the interrupt flags and marks the BufferQueue's buffer as "filled", meaning that valid set of audio data is available (it is thus a "readable" buffer).
+    \item \lstinline{void __attribute__((weak)) DMA1_Stream4_IRQHandler()}, is the ISR called when a transmission event is completed. It clears all the interrupt flags and marks the buffer as "emptied", meaning that the buffer is "writable".
+\end{itemize}
+
+Another crucial method used to properly synchronize the buffers among threads accessing them and ISRs is the \item \lstinline{getReadableBuff()}. This method is called by the thread that needs access to the received audio data. The function looks for a readable buffer, and in case one is not available, it puts the caller thread to sleep. Only once the DMA RX transfer is complete and the respective ISR is executed, then the thread is woken up with IRQwakeup(). This mechanism implements synchronization between thread and ISR.
+
+\subsection{Demo}
+Finally, inside the \href{https://github.com/AleDedor/miosix-kernel/blob/e980138e1b8862327e07b8a4abcdc5a45a58829f/main.cpp}{\underline{main.cpp}} file, we implemented a simple demo application. The main idea is to create a thread that manages the VU-meter (\lstinline{Thread *led_thread}) and another thread (\lstinline{int main()}) that sequentially starts I2S in RX and TX modes to implement a simple loopback using the methods described earlier.\\
+
+A potential issue could arise if the DMA tries to transmit a buffer that is simultaneously being read by the VU-meter thread. To prevent this, a \lstinline{Lock<Mutex> lock(mutex)} is used and shared between both threads. In this way, if the main thread attempts to start data transmission while the mutex is already locked by the VU-meter thread, it must wait until the mutex is released.\\
+
+\section{Project outcomes}
+
+\subsection{Concrete outcomes}
+The demo receives the audio signal from the input jack, displays the sound level on the VU-meter and performs a playback toward the output jack. However, some improvements can still be made: the VU-meter class could display the signal envelope or a filtered value of it, since for simplicity now only the first element of the audio buffer is showed on the LEDs. Also the total latency could be lowered by exploiting a better thread synchronization, modifying the buffer size and maybe reaching a total of 4 buffers in the BufferQueue, such as double buffering can be implemented for both reception and transmission.
+
+    \begin{figure}[ht]
+        \centering
+        \includegraphics[angle=90,width=0.6\textwidth]{demo1.jpg}
+        \caption{Completed Project}
+    \end{figure}
+
+\subsection{Learning outcomes}
+On the software side, we learned: the basics of C++,
+we became familiar with the Miosix toolchain,
+to debug with GDB,
+to write basic multi-threaded code,
+to interface with the ARM libraries to write our own driver and we became more confident with git.
+
+\subsection{Existing knowledge}
+Attending the course of "Sensor System" was helpful since it introduced us to the STM32 world and especially the CubeIDE. In fact, we first used the STM32 IDE to develop a working demo to test the hardware.
+Obviously, having an electronic background was helpful to design the board but also to understand better how a micro controller works (pre existing knowledge of I2C, I2S, registers, PLLs and CLOCK...).
+
+\subsection{Problems encountered}
+We encountered different problems on both hardware/software level:
+
+\begin{itemize}
+\item (Hardware) The QFN package of the codec is not easy to solder and this led us to partially damage the output stage. One of the VU-meter's Leds can't be used since is directly connected to the SWD port (luckily it was the one displaying the minimum level of sound).
+\item (Software) The biggest problem we encountered was to get the I2S peripheral work in Full-duplex mode. In fact, to do so, both I2S and I2S extended must be configured. This crucial information was not mentioned in the STM33 manual.
+\item (Software) We understood late that to make everything work we needed to pay attention to synchronization and timing. This led us to eliminate all the delayUs() we still had inside the code and also unnecessary for-loops.
+\end{itemize}
+
+\section{Honor Pledge}
+
+We pledge that this work was fully and wholly completed within the criteria
+established for academic integrity by Politecnico di Milano (Code of Ethics and
+Conduct) and represents our original production, unless otherwise cited.
+
+We also understand that this project, if successfully graded,  will fulfill part B requirement of the
+Advanced Operating System course and that it will be considered valid up until
+the AOS exam of Sept. 2022. 
+
+\begin{flushright}
+Group Students' signatures:\\
+Luca Daidone\\
+Alessio Dedor
+\end{flushright}
+
+
+\end{document}
